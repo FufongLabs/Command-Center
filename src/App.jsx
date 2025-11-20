@@ -29,7 +29,7 @@ import {
 const initialTasks = {
   solver: [
     { id: 101, title: "อัลบั้มภาพ: ลงพื้นที่น้ำท่วมเชียงราย", role: "Chef", status: "In Progress", tag: "Visual Storytelling", link: "https://facebook.com/post/123" },
-    { id: 102, title: "ร่วมงานบุญบั้งไฟ จ.ยโสธร", role: "Hunter", status: "To Do", tag: "Tradition" }, // เพิ่มประเพณี
+    { id: 102, title: "ร่วมงานบุญบั้งไฟ จ.ยโสธร", role: "Hunter", status: "To Do", tag: "Tradition" }, 
   ],
   principles: [
     { id: 201, title: "Quote: ความยุติธรรมที่มาช้า...", role: "Distributor", status: "Done", tag: "Viral", link: "https://twitter.com/post/456" },
@@ -46,19 +46,26 @@ const initialTasks = {
   ]
 };
 
-// ข้อมูลจำลอง Distribution (สามารถเพิ่มลดได้)
+// ข้อมูลจำลอง Distribution
 const initialDistribution = [
   { id: 1, name: "Facebook Page (Official)", count: 5, type: "Own Media" },
   { id: 2, name: "TikTok Team Tawee", count: 3, type: "Own Media" },
   { id: 3, name: "Twitter (X)", count: 8, type: "Own Media" },
-  { id: 4, name: "ข่าวสดออนไลน์", count: 1, type: "Media" }, // เพิ่มสื่อ
-  { id: 5, name: "เพจ FC คนรักทวี", count: 12, type: "FC" }, // เพิ่มเพจ FC
+  { id: 4, name: "ข่าวสดออนไลน์", count: 1, type: "Media" },
+  { id: 5, name: "เพจ FC คนรักทวี", count: 12, type: "FC" },
 ];
 
 // ข้อมูลจำลอง Links ล่าสุด
 const recentLinks = [
   { id: 1, title: "ข่าวลงพื้นที่ - Khaosod", url: "https://khaosod.co.th/..." },
   { id: 2, title: "คลิป TikTok ไวรัล", url: "https://tiktok.com/..." },
+];
+
+// ข้อมูลสื่อมวลชน (Assets)
+const mediaContacts = [
+  { id: 1, name: "คุณส้ม (Ch 3)", type: "TV", phone: "081-xxx-xxxx", active: true },
+  { id: 2, name: "คุณหนุ่ม (News Portal)", type: "Online", phone: "-", active: true },
+  { id: 3, name: "กลุ่มไลน์ข่าวการเมือง", type: "Group", phone: "-", active: true },
 ];
 
 // --- COMPONENTS ---
@@ -85,8 +92,8 @@ export default function TeamTaweeApp() {
   
   // State สำหรับหน้า Strategy
   const [tasks, setTasks] = useState(initialTasks);
-  const [hideDone, setHideDone] = useState(false); // ซ่อนงานที่เสร็จแล้ว
-  const [editingTask, setEditingTask] = useState(null); // งานที่กำลังแก้ไข
+  const [hideDone, setHideDone] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
 
   // State สำหรับหน้า Dashboard
   const [distributionStats, setDistributionStats] = useState(initialDistribution);
@@ -97,6 +104,15 @@ export default function TeamTaweeApp() {
     { id: 2, title: "แผนปั้น 'ผู้เชี่ยวชาญ' (Expert Plan)", progress: 30, items: ["รายการ YouTube Weekly", "หนังสือ Pocket book ความยุติธรรม"] },
     { id: 3, title: "แผนลงพื้นที่เชิงรุก (Solver Plan)", progress: 80, items: ["คาราวานแก้หนี้ 4 ภาค", "ตั้งศูนย์รับเรื่องร้องเรียนออนไลน์"] }
   ]);
+
+  // --- ส่วนที่ลืมใส่ไปคราวที่แล้ว (เพิ่มกลับมาแล้วครับ) ---
+  const navItems = [
+    { id: 'dashboard', label: 'ภาพรวม (Dashboard)', icon: LayoutDashboard },
+    { id: 'strategy', label: 'กระดาน 4 แกน (Strategy)', icon: Megaphone },
+    { id: 'masterplan', label: 'แผนงานหลัก (Master Plan)', icon: Map },
+    { id: 'rapidresponse', label: 'ปฏิบัติการด่วน (Rapid Response)', icon: Zap, color: 'text-red-500' },
+    { id: 'assets', label: 'คลังอาวุธ (Assets)', icon: Database },
+  ];
 
   // ฟังก์ชันจัดการ Distribution
   const incrementDist = (id) => {
@@ -201,7 +217,6 @@ export default function TeamTaweeApp() {
                        <h4 className="font-bold text-slate-700 text-sm leading-tight h-8 flex items-center justify-center">{item.name}</h4>
                        <span className="text-2xl font-bold text-blue-600 my-1">{item.count}</span>
                        
-                       {/* ปุ่มเพิ่มจำนวนแบบ Manual */}
                        <button 
                           onClick={() => incrementDist(item.id)}
                           className="absolute -top-2 -right-2 bg-white shadow border border-slate-200 rounded-full p-1 opacity-0 group-hover:opacity-100 hover:text-blue-600 transition"
@@ -449,8 +464,51 @@ export default function TeamTaweeApp() {
                 + เปิดเคสด่วน (New Case)
               </button>
             </div>
-            <div className="text-center p-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-               ส่วนนี้เหมือนเดิม (Checklist SOP & Media list)
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* SOP Checklist */}
+              <div className="md:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-slate-500" /> Standard Operating Procedure (SOP)
+                </h3>
+                <div className="space-y-4">
+                  {[
+                    "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)",
+                    "2. ร่าง Message สั้นๆ (เน้น Fact + จุดยืน)",
+                    "3. ส่งให้ท่านทวีดูผ่าน Line (หรือโทรสายตรง)",
+                    "4. ผลิตสื่อด่วน (Graphic Quote หรือ คลิปสัมภาษณ์สั้น)",
+                    "5. กระจายลง Twitter/TikTok และส่งเข้ากลุ่มนักข่าว"
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 transition">
+                      <input type="checkbox" className="mt-1 w-5 h-5 text-red-600 rounded border-slate-300 focus:ring-red-500" />
+                      <span className="text-sm text-slate-700">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Media Contacts (View Only) */}
+              <div className="space-y-6">
+                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 className="font-bold text-slate-800 mb-4">รายชื่อสื่อมวลชน (Selected)</h3>
+                    <div className="space-y-3">
+                       {mediaContacts.filter(c => c.active).map(contact => (
+                          <div key={contact.id} className="flex justify-between items-center p-2 bg-slate-50 rounded border border-slate-100">
+                             <div>
+                                <p className="text-sm font-bold text-slate-700">{contact.name}</p>
+                                <p className="text-xs text-slate-500">{contact.type}</p>
+                             </div>
+                             <button className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-slate-600 hover:text-blue-600 flex items-center gap-1">
+                                <Eye className="w-3 h-3" /> View
+                             </button>
+                          </div>
+                       ))}
+                       <button onClick={() => setActiveTab('assets')} className="w-full text-center text-xs text-blue-600 font-bold hover:underline mt-2">
+                          จัดการรายชื่อใน Assets
+                       </button>
+                    </div>
+                 </div>
+              </div>
             </div>
           </div>
         );
@@ -479,6 +537,40 @@ export default function TeamTaweeApp() {
              </div>
 
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Media List Database */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                   <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-slate-800">ฐานข้อมูลสื่อมวลชน (Media List)</h3>
+                      <button className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full hover:bg-blue-700">+ เพิ่มรายชื่อ</button>
+                   </div>
+                   <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                         <thead className="text-xs text-slate-500 uppercase bg-slate-50">
+                            <tr>
+                               <th className="px-3 py-2 rounded-l-lg">ชื่อ/สังกัด</th>
+                               <th className="px-3 py-2">เบอร์โทร</th>
+                               <th className="px-3 py-2 text-center">Show in Rapid</th>
+                               <th className="px-3 py-2 rounded-r-lg"></th>
+                            </tr>
+                         </thead>
+                         <tbody className="divide-y divide-slate-100">
+                            {mediaContacts.map(contact => (
+                               <tr key={contact.id} className="hover:bg-slate-50">
+                                  <td className="px-3 py-3 font-medium text-slate-700">{contact.name} <span className="text-xs text-slate-400 block">{contact.type}</span></td>
+                                  <td className="px-3 py-3 text-slate-500">{contact.phone}</td>
+                                  <td className="px-3 py-3 text-center">
+                                     <input type="checkbox" checked={contact.active} className="rounded text-blue-600 focus:ring-blue-500" readOnly />
+                                  </td>
+                                  <td className="px-3 py-3 text-right">
+                                     <button className="text-slate-400 hover:text-blue-600"><Share2 className="w-4 h-4" /></button>
+                                  </td>
+                               </tr>
+                            ))}
+                         </tbody>
+                      </table>
+                   </div>
+                </div>
+
                 {/* Brand Assets & Templates */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                    <h3 className="font-bold text-slate-800 mb-4">Brand Assets & Templates</h3>
