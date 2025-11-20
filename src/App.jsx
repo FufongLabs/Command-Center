@@ -11,7 +11,7 @@ import {
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, Eye, FileText, Share2, Plus, 
-  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare
+  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag
 } from 'lucide-react';
 
 // --- PREDEFINED DATA ---
@@ -19,12 +19,12 @@ const PRESET_TAGS = [
   "Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"
 ];
 
-const DEFAULT_SOP = [
-  { text: "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)", done: false },
-  { text: "2. ร่าง Message สั้นๆ (เน้น Fact + จุดยืน)", done: false },
-  { text: "3. ขอ Approved ด่วน (Line/โทร)", done: false },
-  { text: "4. ผลิตสื่อด่วน (Graphic Quote/คลิปสั้น)", done: false },
-  { text: "5. กระจายลง Social Media & ส่งกลุ่มนักข่าว", done: false }
+const SOP_GUIDE = [
+  "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)",
+  "2. ร่าง Message สั้นๆ (เน้น Fact + จุดยืน)",
+  "3. ขอ Approved ด่วน (Line/โทร)",
+  "4. ผลิตสื่อด่วน (Graphic Quote หรือ คลิปสัมภาษณ์สั้น)",
+  "5. กระจายลง Social Media & ส่งกลุ่มนักข่าว"
 ];
 
 // --- COMPONENTS ---
@@ -62,7 +62,10 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
         <div className="space-y-4">
            {fields.map((field) => (
              <div key={field.key}>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">{field.label}</label>
+                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase flex items-center gap-2">
+                    {field.label}
+                    {field.key === 'tag' && <Tag className="w-3 h-3 text-blue-500" />}
+                </label>
                 {field.type === 'select' ? (
                    <select 
                       value={formData[field.key]} 
@@ -72,18 +75,19 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                       {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                    </select>
                 ) : field.type === 'datalist' ? (
-                    <>
+                    <div className="relative">
                       <input 
                         list={`list-${field.key}`}
                         value={formData[field.key]}
                         onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                        className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none"
+                        className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none pl-9"
                         placeholder={field.placeholder || ''}
                       />
+                      <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                       <datalist id={`list-${field.key}`}>
                         {field.options.map(opt => <option key={opt} value={opt} />)}
                       </datalist>
-                    </>
+                    </div>
                 ) : (
                    <input 
                       type={field.type || 'text'}
@@ -117,41 +121,20 @@ const StatusBadge = ({ status }) => {
   return <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wide font-semibold ${colors[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
-// --- NEW CHART COMPONENT (Status Breakdown) ---
 const StatusDonutChart = ({ stats }) => {
-  const total = stats.total || 1; // avoid division by zero
-  // Calculate segments
+  const total = stats.total || 1; 
   const donePercent = (stats.done / total) * 100;
   const progressPercent = (stats.progress / total) * 100;
-  const todoPercent = (stats.todo / total) * 100;
-  
   const radius = 16;
   const circumference = 2 * Math.PI * radius;
 
-  // Offsets
-  const doneOffset = circumference - (donePercent / 100) * circumference;
-  const progressOffset = circumference - (progressPercent / 100) * circumference;
-  // To stack them:
-  // Green (Done) starts at 0
-  // Blue (Progress) starts where Green ends
-  // Gray (Todo) is the background or remaining
-  
   return (
     <div className="relative w-40 h-40 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 36 36">
-        {/* Background Circle */}
         <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="3.8" />
-        
-        {/* Todo Segment (Gray) - Base */}
         <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-300" strokeWidth="3.8" strokeDasharray={`${circumference} ${circumference}`} />
-
-        {/* Progress Segment (Blue) */}
-        <circle cx="18" cy="18" r="16" fill="none" className="stroke-blue-500 transition-all duration-1000" strokeWidth="3.8" 
-          strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} />
-          
-        {/* Done Segment (Green) - Top Layer */}
-        <circle cx="18" cy="18" r="16" fill="none" className="stroke-green-500 transition-all duration-1000" strokeWidth="3.8" 
-          strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} />
+        <circle cx="18" cy="18" r="16" fill="none" className="stroke-blue-500 transition-all duration-1000" strokeWidth="3.8" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} />
+        <circle cx="18" cy="18" r="16" fill="none" className="stroke-green-500 transition-all duration-1000" strokeWidth="3.8" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} />
       </svg>
       <div className="absolute text-center">
         <span className="text-3xl font-black text-slate-800">{stats.total}</span>
@@ -223,6 +206,7 @@ export default function TeamTaweeApp() {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState('week3-nov');
   
   const [tasks, setTasks] = useState([]);
   const [plans, setPlans] = useState([]);
@@ -236,7 +220,7 @@ export default function TeamTaweeApp() {
   const [isDataLoading, setIsDataLoading] = useState(true); 
   
   const [editingTask, setEditingTask] = useState(null);
-  const [urgentModal, setUrgentModal] = useState(null); // For managing urgent cases
+  const [urgentModal, setUrgentModal] = useState(null); 
   const [formModalConfig, setFormModalConfig] = useState({ isOpen: false, title: '', fields: [], onSave: () => {} });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [isDistOpen, setIsDistOpen] = useState(false); 
@@ -295,7 +279,7 @@ export default function TeamTaweeApp() {
     });
   };
 
-  // --- TASK ACTIONS ---
+  // --- ACTIONS ---
   const saveTaskChange = async (task) => {
     if (!task.id) return;
     setIsGlobalLoading(true);
@@ -314,7 +298,6 @@ export default function TeamTaweeApp() {
     setIsGlobalLoading(false);
   };
 
-  // Save Urgent Case (Including SOP)
   const saveUrgentCase = async (task) => {
     if (!task.id) return;
     setIsGlobalLoading(true);
@@ -323,7 +306,7 @@ export default function TeamTaweeApp() {
             title: task.title || "", 
             status: task.status || "To Do",
             link: task.link || "", 
-            sop: task.sop || [], // Save SOP array
+            sop: task.sop || [],
             updatedBy: currentUser.displayName, 
             updatedAt: new Date().toISOString()
         });
@@ -335,7 +318,7 @@ export default function TeamTaweeApp() {
   const addNewTask = (columnKey) => {
     openFormModal("เพิ่มงานใหม่", [
         { key: 'title', label: 'ชื่องาน', placeholder: 'ระบุชื่องาน...' },
-        { key: 'tag', label: 'Tag (ประเภท)', type: 'datalist', options: PRESET_TAGS },
+        { key: 'tag', label: 'Tag (เลือกหรือพิมพ์ใหม่)', type: 'datalist', options: PRESET_TAGS, placeholder: 'เช่น Viral, ลงพื้นที่' },
         { key: 'role', label: 'ผู้รับผิดชอบ', placeholder: 'เช่น Chef, Hunter' },
         { key: 'deadline', label: 'กำหนดส่ง', type: 'date' }
     ], async (data) => {
@@ -346,7 +329,6 @@ export default function TeamTaweeApp() {
     });
   };
 
-  // --- ASSET ACTIONS ---
   const addChannel = () => {
     openFormModal("เพิ่มช่องทางเผยแพร่", [
         { key: 'name', label: 'ชื่อช่องทาง', placeholder: 'เช่น Facebook Page' },
@@ -387,7 +369,10 @@ export default function TeamTaweeApp() {
     });
   };
   const deleteLink = async (id) => { if(confirm("ลบลิงก์นี้?")) await deleteDoc(doc(db, "published_links", id)); };
-  const updateDist = async (id, count) => updateDoc(doc(db, "channels", id), { count: Math.max(0, count) });
+  
+  // ** FIX: Use || 0 to prevent NaN **
+  const updateDist = async (id, count) => updateDoc(doc(db, "channels", id), { count: Math.max(0, count || 0) });
+  
   const deleteChannel = async (id) => { if(confirm("ลบช่องทางนี้?")) await deleteDoc(doc(db, "channels", id)); };
   const toggleMediaActive = async (contact) => await updateDoc(doc(db, "media", contact.id), { active: !contact.active });
   const deleteMedia = async (id) => { if(confirm("ลบรายชื่อนี้?")) await deleteDoc(doc(db, "media", id)); };
@@ -406,12 +391,11 @@ export default function TeamTaweeApp() {
         { key: 'title', label: 'หัวข้อประเด็น', placeholder: 'เช่น ชี้แจงข่าวบิดเบือนเรื่อง...' },
         { key: 'deadline', label: 'ต้องเสร็จภายใน', type: 'date' }
     ], async (data) => {
-        // Create task with DEFAULT SOP
         await addDoc(collection(db, "tasks"), { 
             ...data, 
             status: "To Do", role: "Hunter", tag: "Urgent", 
             link: "", columnKey: "defender",
-            sop: DEFAULT_SOP, // Inject SOP here
+            sop: DEFAULT_SOP,
             createdBy: currentUser.displayName, createdAt: new Date().toISOString()
         });
         alert("เปิดเคสเรียบร้อย! จัดการได้ในหน้านี้ทันที");
@@ -426,9 +410,7 @@ export default function TeamTaweeApp() {
     backoffice: tasks.filter(t => t.columnKey === 'backoffice')
   };
   
-  // Urgent tasks for Rapid Response page
   const urgentTasks = tasks.filter(t => t.tag === 'Urgent');
-  
   const allTags = ['All', ...new Set(tasks.map(t => t.tag))];
   const navItems = [
     { id: 'dashboard', title: 'ภาพรวม', subtitle: 'Dashboard', icon: LayoutDashboard },
@@ -470,7 +452,7 @@ export default function TeamTaweeApp() {
                  </div>
               </div>
 
-              {/* Distribution Hub & Links (Combined) */}
+              {/* Distribution Hub */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col">
                  <div className="p-6 border-b border-slate-100">
                     <div className="flex justify-between items-center mb-4">
@@ -481,9 +463,10 @@ export default function TeamTaweeApp() {
                         {channels.slice(0,6).map(item => (
                             <div key={item.id} className="bg-slate-50 p-2 rounded border border-slate-100 text-center relative group">
                                 <h4 className="font-bold text-slate-700 text-xs truncate">{item.name}</h4>
-                                <span className="text-xl font-black text-blue-600 block">{item.count}</span>
+                                <span className="text-xl font-black text-blue-600 block">{item.count || 0}</span>
                                 <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition absolute -top-2 inset-x-0">
-                                    <button onClick={() => updateDist(item.id, item.count + 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-blue-600"><Plus className="w-3 h-3" /></button>
+                                    <button onClick={() => updateDist(item.id, (item.count || 0) - 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-red-600"><Minus className="w-3 h-3" /></button>
+                                    <button onClick={() => updateDist(item.id, (item.count || 0) + 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-blue-600"><Plus className="w-3 h-3" /></button>
                                 </div>
                             </div>
                         ))}
@@ -513,16 +496,34 @@ export default function TeamTaweeApp() {
               </div>
             </div>
 
-            {/* Master Plan Preview */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                 <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan Status</p><button onClick={() => setActiveTab('masterplan')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button></div>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {plans.map(plan => (
-                        <div key={plan.id}>
-                            <div className="flex justify-between text-sm mb-1"><span className="font-bold text-slate-700 truncate">{plan.title}</span><span className="text-slate-500">{plan.progress}%</span></div>
-                            <div className="w-full bg-slate-100 rounded-full h-2"><div className="bg-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: `${plan.progress}%` }}></div></div>
-                        </div>
-                    ))}
+            {/* Strategy Preview */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-4">
+                 <div className="flex justify-between items-center mb-3">
+                    <p className="text-slate-500 text-xs font-bold uppercase">Strategy Board Preview</p>
+                    <button onClick={() => setActiveTab('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button>
+                 </div>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['solver', 'principles', 'defender', 'expert'].map((key) => {
+                        const items = groupedTasks[key] || [];
+                        return (
+                            <div key={key} className="bg-slate-50 p-3 rounded border border-slate-100 h-40 overflow-hidden relative">
+                                <div className="flex justify-between mb-2 border-b border-slate-100 pb-1">
+                                    <span className="text-[10px] font-bold uppercase text-slate-400">{key}</span>
+                                    <span className="text-[10px] font-bold bg-white px-1.5 rounded border border-slate-200">{items.length}</span>
+                                </div>
+                                {items.length > 0 ? (
+                                    <div className="space-y-1.5">
+                                        {items.slice(0, 4).map(t => (
+                                            <div key={t.id} className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${t.status === 'Done' ? 'bg-green-400' : 'bg-blue-400'}`}></div>
+                                                <p className="text-xs text-slate-600 truncate">{t.title}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : <p className="text-[10px] text-slate-300 text-center mt-4">- ว่าง -</p>}
+                            </div>
+                        )
+                    })}
                  </div>
             </div>
           </div>
@@ -577,13 +578,22 @@ export default function TeamTaweeApp() {
                         <div className="grid grid-cols-2 gap-4">
                            <div>
                              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Tag</label>
-                             <input list="tag-options" type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" />
-                             <datalist id="tag-options">{PRESET_TAGS.map(t=><option key={t} value={t}/>)}</datalist>
+                             <div className="relative">
+                                <input list="edit-tag-options" type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none pl-9" />
+                                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                                <datalist id="edit-tag-options">{PRESET_TAGS.map(t=><option key={t} value={t}/>)}</datalist>
+                             </div>
                            </div>
                            <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">สถานะ</label><select value={editingTask.status} onChange={e => setEditingTask({...editingTask, status: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-white focus:border-blue-500 outline-none"><option value="To Do">To Do</option><option value="In Progress">In Progress</option><option value="In Review">In Review</option><option value="Done">Done</option></select></div>
                         </div>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Deadline</label><input type="date" value={editingTask.deadline || ""} onChange={e => setEditingTask({...editingTask, deadline: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" /></div>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Link ผลงาน</label><div className="flex gap-2"><input type="text" value={editingTask.link || ""} onChange={e => setEditingTask({...editingTask, link: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" placeholder="https://..." />{editingTask.link && <a href={editingTask.link} target="_blank" rel="noreferrer" className="p-2.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"><ExternalLink className="w-5 h-5" /></a>}</div></div>
+                        
+                        <div className="text-[10px] text-slate-400 bg-slate-50 p-2 rounded border border-slate-100">
+                            <p>Created: {editingTask.createdBy}</p>
+                            {editingTask.updatedBy && <p>Last Update: {editingTask.updatedBy}</p>}
+                        </div>
+
                         <div className="flex justify-between pt-4 border-t border-slate-100">
                              <button onClick={async () => { if(confirm("ลบงานนี้?")) { setIsGlobalLoading(true); await deleteDoc(doc(db, "tasks", editingTask.id)); setIsGlobalLoading(false); setEditingTask(null); }}} className="text-red-500 text-sm font-bold hover:bg-red-50 px-3 py-2 rounded-lg transition-colors flex items-center gap-1"><Trash2 className="w-4 h-4"/> ลบงาน</button>
                              <button onClick={() => saveTaskChange(editingTask)} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-2"><Save className="w-4 h-4" /> บันทึก</button>
@@ -615,14 +625,14 @@ export default function TeamTaweeApp() {
                       {sortedItems.map((item, idx) => {
                          const originalIndex = plan.items.indexOf(item); 
                          return (
-                          <li key={idx} className={`flex items-start justify-between gap-2 text-sm group/item hover:bg-white p-1 rounded transition ${item.completed ? 'opacity-40 order-last' : ''}`}>
-                            <div className="flex items-center gap-2 cursor-pointer w-full" onClick={() => togglePlanItem(plan.id, originalIndex, plan.items)}>
+                          <li key={idx} className={`flex items-center justify-between gap-2 text-sm p-1 rounded transition group/item hover:bg-white ${item.completed ? 'opacity-40 order-last' : ''}`}>
+                            <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => togglePlanItem(plan.id, originalIndex, plan.items)}>
                               {item.completed ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" /> : <Circle className="w-5 h-5 text-slate-300 hover:text-blue-400 flex-shrink-0" />}
                               <span className={item.completed ? "" : "text-slate-700"}>{item.text}</span>
                             </div>
-                            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                <button onClick={() => editPlanItem(plan.id, originalIndex, plan.items)} className="text-slate-400 hover:text-blue-600 p-1"><Edit2 className="w-3 h-3" /></button>
-                                <button onClick={() => removePlanItem(plan.id, originalIndex, plan.items)} className="text-slate-400 hover:text-red-500 p-1"><Trash2 className="w-3 h-3" /></button>
+                            <div className="flex gap-1 w-16 justify-end">
+                                <button onClick={() => editPlanItem(plan.id, originalIndex, plan.items)} className="text-slate-400 hover:text-blue-600 p-1"><Edit2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => removePlanItem(plan.id, originalIndex, plan.items)} className="text-slate-400 hover:text-red-500 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
                           </li>
                          );
@@ -641,31 +651,46 @@ export default function TeamTaweeApp() {
             <div className="space-y-6">
                 <PageHeader title="ปฏิบัติการด่วน (Rapid Response)" subtitle="Agile Response Unit" action={<button onClick={createUrgentCase} className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-700 shadow-lg transition whitespace-nowrap flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> เปิดเคสด่วน (New Case)</button>} />
                 
-                {/* Urgent Cases Grid (Manage in page) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                   {urgentTasks.length > 0 ? urgentTasks.map(task => (
-                       <div key={task.id} className="bg-white p-4 rounded-xl border-l-4 border-red-500 shadow-sm hover:shadow-md transition cursor-pointer" onClick={() => setUrgentModal(task)}>
-                          <div className="flex justify-between items-start mb-2">
-                             <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">URGENT</span>
-                             <StatusBadge status={task.status} />
-                          </div>
-                          <h3 className="font-bold text-slate-800 mb-2 leading-tight">{task.title}</h3>
-                          {task.deadline && <p className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Clock className="w-3 h-3"/> Deadline: {task.deadline}</p>}
-                          <div className="mt-3 pt-3 border-t border-slate-100">
-                             <p className="text-xs font-bold text-slate-500 mb-1">SOP Checklist:</p>
-                             <div className="flex gap-1">
-                                {(task.sop || []).map((s, i) => (
-                                   <div key={i} className={`h-1.5 flex-1 rounded-full ${s.done ? 'bg-green-500' : 'bg-slate-200'}`}></div>
-                                ))}
-                             </div>
-                             <p className="text-[10px] text-right text-slate-400 mt-1">{(task.sop || []).filter(s=>s.done).length}/{(task.sop || []).length} completed</p>
-                          </div>
-                       </div>
-                   )) : (
-                       <div className="col-span-full p-10 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400">
-                           ยังไม่มีเคสด่วนขณะนี้
-                       </div>
-                   )}
+                <div className="flex gap-6">
+                    {/* Left: SOP Guide (Static) */}
+                    <div className="w-1/3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-fit">
+                        <h3 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><FileText className="w-5 h-5 text-slate-500" /> SOP Guide (คู่มือ)</h3>
+                        <div className="space-y-3 text-sm text-slate-600">
+                            {SOP_GUIDE.map((step, i) => (
+                                <p key={i} className="leading-relaxed">{step}</p>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Right: Urgent Cases Grid */}
+                    <div className="w-2/3 space-y-6">
+                        {urgentTasks.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {urgentTasks.map(task => (
+                                <div key={task.id} className="bg-white p-4 rounded-xl border-l-4 border-red-500 shadow-sm hover:shadow-md transition cursor-pointer" onClick={() => setUrgentModal(task)}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">URGENT</span>
+                                        <StatusBadge status={task.status} />
+                                    </div>
+                                    <h3 className="font-bold text-slate-800 mb-2 leading-tight">{task.title}</h3>
+                                    {task.deadline && <p className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Clock className="w-3 h-3"/> Deadline: {task.deadline}</p>}
+                                    <div className="mt-3 pt-3 border-t border-slate-100">
+                                        <p className="text-xs font-bold text-slate-500 mb-1">Checklist:</p>
+                                        <div className="flex gap-1">
+                                            {(task.sop || []).map((s, i) => (
+                                            <div key={i} className={`h-1.5 flex-1 rounded-full ${s.done ? 'bg-green-500' : 'bg-slate-200'}`}></div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            </div>
+                        ) : (
+                            <div className="p-10 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400 bg-slate-50">
+                                ยังไม่มีเคสด่วนขณะนี้
+                            </div>
+                        )}
+                    </div>
                 </div>
                 
                 {/* Urgent Modal (SOP Manager) */}
@@ -710,22 +735,6 @@ export default function TeamTaweeApp() {
                       </div>
                    </div>
                 )}
-
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-8">
-                    <h3 className="font-bold text-slate-800 mb-4">รายชื่อสื่อมวลชน (Quick Contact - Active Only)</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {media.filter(c => c.active).map((c,i) => (
-                            <div key={i} className="p-3 border rounded-lg bg-slate-50 hover:bg-white hover:shadow-sm transition">
-                                <p className="font-bold text-sm text-slate-800">{c.name}</p>
-                                <div className="flex flex-col gap-1 mt-2 text-xs text-slate-500">
-                                    <span><Phone className="w-3 h-3 inline mr-1"/> {c.phone}</span>
-                                    <span className="text-green-600"><MessageCircle className="w-3 h-3 inline mr-1"/> {c.line}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <button onClick={() => setActiveTab('assets')} className="text-xs text-blue-600 font-bold hover:underline mt-4 block">จัดการรายชื่อทั้งหมดที่หน้า Assets →</button>
-                </div>
             </div>
         );
 
