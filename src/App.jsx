@@ -14,9 +14,17 @@ import {
   Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag
 } from 'lucide-react';
 
-// --- PREDEFINED DATA ---
+// --- PREDEFINED DATA (FIXED MISSING SOP) ---
 const PRESET_TAGS = [
   "Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"
+];
+
+const DEFAULT_SOP = [
+  { text: "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)", done: false },
+  { text: "2. ร่าง Message สั้นๆ (เน้น Fact + จุดยืน)", done: false },
+  { text: "3. ขอ Approved ด่วน (Line/โทร)", done: false },
+  { text: "4. ผลิตสื่อด่วน (Graphic Quote หรือ คลิปสัมภาษณ์สั้น)", done: false },
+  { text: "5. กระจายลง Social Media & ส่งกลุ่มนักข่าว", done: false }
 ];
 
 const SOP_GUIDE = [
@@ -39,7 +47,6 @@ const LoadingOverlay = ({ isOpen, message = "กำลังบันทึก�
   );
 };
 
-// Form Modal (Updated: Quick Tags)
 const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บันทึก" }) => {
   const [formData, setFormData] = useState({});
 
@@ -60,15 +67,13 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
            <h3 className="text-xl font-bold text-slate-800">{title}</h3>
            <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X className="w-6 h-6 text-slate-400" /></button>
         </div>
-        <div className="space-y-5">
+        <div className="space-y-4">
            {fields.map((field) => (
              <div key={field.key}>
                 <label className="block text-xs font-bold text-slate-500 mb-1 uppercase flex items-center gap-2">
                     {field.label}
                     {field.key === 'tag' && <Tag className="w-3 h-3 text-blue-500" />}
                 </label>
-                
-                {/* Input Render Logic */}
                 {field.type === 'select' ? (
                    <select 
                       value={formData[field.key]} 
@@ -77,6 +82,20 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                    >
                       {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                    </select>
+                ) : field.type === 'datalist' ? (
+                    <div className="relative">
+                      <input 
+                        list={`list-${field.key}`}
+                        value={formData[field.key]}
+                        onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                        className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none pl-9"
+                        placeholder={field.placeholder || ''}
+                      />
+                      <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      <datalist id={`list-${field.key}`}>
+                        {field.options.map(opt => <option key={opt} value={opt} />)}
+                      </datalist>
+                    </div>
                 ) : (
                    <input 
                       type={field.type || 'text'}
@@ -85,21 +104,6 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                       className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none"
                       placeholder={field.placeholder || ''}
                    />
-                )}
-
-                {/* Special UI for Tags: Quick Buttons */}
-                {field.key === 'tag' && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                        {PRESET_TAGS.map(tag => (
-                            <button 
-                                key={tag}
-                                onClick={() => setFormData({...formData, tag: tag})}
-                                className={`text-[10px] px-2 py-1 rounded border transition ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-400'}`}
-                            >
-                                {tag}
-                            </button>
-                        ))}
-                    </div>
                 )}
              </div>
            ))}
@@ -133,7 +137,7 @@ const StatusDonutChart = ({ stats }) => {
   const circumference = 2 * Math.PI * radius;
 
   return (
-    <div className="relative w-32 h-32 flex items-center justify-center">
+    <div className="relative w-40 h-40 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 36 36">
         <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="3.8" />
         <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-300" strokeWidth="3.8" strokeDasharray={`${circumference} ${circumference}`} />
@@ -141,8 +145,8 @@ const StatusDonutChart = ({ stats }) => {
         <circle cx="18" cy="18" r="16" fill="none" className="stroke-green-500 transition-all duration-1000" strokeWidth="3.8" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} />
       </svg>
       <div className="absolute text-center">
-        <span className="text-2xl font-black text-slate-800">{stats.total}</span>
-        <span className="block text-[8px] text-slate-400 font-bold uppercase">Tasks</span>
+        <span className="text-3xl font-black text-slate-800">{stats.total}</span>
+        <span className="block text-[10px] text-slate-400 font-bold uppercase">TASKS</span>
       </div>
     </div>
   );
@@ -282,7 +286,7 @@ export default function TeamTaweeApp() {
     });
   };
 
-  // --- TASK ACTIONS ---
+  // --- ACTIONS ---
   const saveTaskChange = async (task) => {
     if (!task.id) return;
     setIsGlobalLoading(true);
@@ -321,7 +325,7 @@ export default function TeamTaweeApp() {
   const addNewTask = (columnKey) => {
     openFormModal("เพิ่มงานใหม่", [
         { key: 'title', label: 'ชื่องาน', placeholder: 'ระบุชื่องาน...' },
-        { key: 'tag', label: 'Tag (เลือกหรือพิมพ์ใหม่)', type: 'text', placeholder: 'เช่น Viral, ลงพื้นที่' },
+        { key: 'tag', label: 'Tag (เลือกหรือพิมพ์ใหม่)', type: 'datalist', options: PRESET_TAGS, placeholder: 'เช่น Viral, ลงพื้นที่' },
         { key: 'role', label: 'ผู้รับผิดชอบ', placeholder: 'เช่น Chef, Hunter' },
         { key: 'deadline', label: 'กำหนดส่ง', type: 'date' }
     ], async (data) => {
@@ -373,7 +377,10 @@ export default function TeamTaweeApp() {
     });
   };
   const deleteLink = async (id) => { if(confirm("ลบลิงก์นี้?")) await deleteDoc(doc(db, "published_links", id)); };
+  
+  // Fix NaN issue
   const updateDist = async (id, count) => updateDoc(doc(db, "channels", id), { count: Math.max(0, count || 0) });
+  
   const deleteChannel = async (id) => { if(confirm("ลบช่องทางนี้?")) await deleteDoc(doc(db, "channels", id)); };
   const toggleMediaActive = async (contact) => await updateDoc(doc(db, "media", contact.id), { active: !contact.active });
   const deleteMedia = async (id) => { if(confirm("ลบรายชื่อนี้?")) await deleteDoc(doc(db, "media", id)); };
@@ -396,7 +403,7 @@ export default function TeamTaweeApp() {
             ...data, 
             status: "To Do", role: "Hunter", tag: "Urgent", 
             link: "", columnKey: "defender",
-            sop: DEFAULT_SOP,
+            sop: DEFAULT_SOP, // Fixed undefined error
             createdBy: currentUser.displayName, createdAt: new Date().toISOString()
         });
         alert("เปิดเคสเรียบร้อย! จัดการได้ในหน้านี้ทันที");
@@ -412,7 +419,6 @@ export default function TeamTaweeApp() {
   };
   
   const urgentTasks = tasks.filter(t => t.tag === 'Urgent');
-  // FIX: Combine Preset Tags with Existing Tags for better filtering
   const allTags = ['All', ...new Set([...PRESET_TAGS, ...tasks.map(t => t.tag)].filter(Boolean))];
   
   const navItems = [
@@ -443,9 +449,7 @@ export default function TeamTaweeApp() {
           <div className="space-y-6 animate-fadeIn">
             <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" />
 
-            {/* Dashboard Layout Revamp: 3 Col Top */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
               {/* 1. Status Chart */}
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
                  <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left">Task Status</p>
@@ -584,7 +588,7 @@ export default function TeamTaweeApp() {
               </div>
             </div>
 
-            {/* EDIT TASK MODAL (Updated with Quick Tags) */}
+            {/* EDIT TASK MODAL */}
             {editingTask && (
                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
                   <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
@@ -594,8 +598,11 @@ export default function TeamTaweeApp() {
                         <div className="grid grid-cols-2 gap-4">
                            <div>
                              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Tag (เลือก/พิมพ์)</label>
-                             <input type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" />
-                             <div className="mt-2 flex flex-wrap gap-2">{PRESET_TAGS.map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag: t})} className={`text-[10px] px-2 py-1 rounded border ${editingTask.tag===t ? 'bg-blue-600 text-white' : 'bg-slate-50'}`}>{t}</button>)}</div>
+                             <div className="relative">
+                                <input list="edit-tag-options" type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none pl-9" />
+                                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                                <datalist id="edit-tag-options">{PRESET_TAGS.map(t=><option key={t} value={t}/>)}</datalist>
+                             </div>
                            </div>
                            <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">สถานะ</label><select value={editingTask.status} onChange={e => setEditingTask({...editingTask, status: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-white focus:border-blue-500 outline-none"><option value="To Do">To Do</option><option value="In Progress">In Progress</option><option value="In Review">In Review</option><option value="Done">Done</option></select></div>
                         </div>
@@ -638,14 +645,15 @@ export default function TeamTaweeApp() {
                       {sortedItems.map((item, idx) => {
                          const originalIndex = plan.items.indexOf(item); 
                          return (
-                          <li key={idx} className={`flex items-center justify-between gap-2 text-sm p-1 rounded transition ${item.completed ? 'opacity-40 order-last' : ''}`}>
+                          <li key={idx} className={`flex items-center justify-between gap-2 text-sm p-1 rounded transition group/item hover:bg-white ${item.completed ? 'opacity-40 order-last' : ''}`}>
                             <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => togglePlanItem(plan.id, originalIndex, plan.items)}>
                               {item.completed ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" /> : <Circle className="w-5 h-5 text-slate-300 hover:text-blue-400 flex-shrink-0" />}
                               <span className={item.completed ? "" : "text-slate-700"}>{item.text}</span>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => editPlanItem(plan.id, originalIndex, plan.items)} className="text-slate-300 hover:text-blue-600"><Edit2 className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => removePlanItem(plan.id, originalIndex, plan.items)} className="text-slate-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                             {/* FIX: Separate buttons to avoid overlap issues */}
+                             <div className="flex gap-2 opacity-100 z-10">
+                                <button onClick={(e) => { e.stopPropagation(); editPlanItem(plan.id, originalIndex, plan.items); }} className="text-slate-400 hover:text-blue-600 p-1.5 rounded hover:bg-blue-50"><Edit2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={(e) => { e.stopPropagation(); removePlanItem(plan.id, originalIndex, plan.items); }} className="text-slate-400 hover:text-red-500 p-1.5 rounded hover:bg-red-50"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
                           </li>
                          );
