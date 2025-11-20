@@ -16,7 +16,6 @@ import {
 
 // --- COMPONENTS ---
 
-// 1. Loading Overlay (Graphic เปลี่ยนผ่าน)
 const LoadingOverlay = ({ isOpen, message = "กำลังบันทึกข้อมูล..." }) => {
   if (!isOpen) return null;
   return (
@@ -27,10 +26,8 @@ const LoadingOverlay = ({ isOpen, message = "กำลังบันทึก�
   );
 };
 
-// 2. Generic Form Modal (ฟอร์มสวยๆ แทน Pop-up เดิม)
 const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บันทึก" }) => {
   const [formData, setFormData] = useState({});
-
   useEffect(() => {
     if (isOpen) {
       const initialData = {};
@@ -38,36 +35,21 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
       setFormData(initialData);
     }
   }, [isOpen, fields]);
-
   if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">
-        <div className="flex justify-between items-center mb-6">
-           <h3 className="text-xl font-bold text-slate-800">{title}</h3>
-           <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X className="w-6 h-6 text-slate-400" /></button>
-        </div>
+        <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-slate-800">{title}</h3><button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X className="w-6 h-6 text-slate-400" /></button></div>
         <div className="space-y-4">
            {fields.map((field) => (
              <div key={field.key}>
                 <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">{field.label}</label>
                 {field.type === 'select' ? (
-                   <select 
-                      value={formData[field.key]} 
-                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                      className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-white focus:border-blue-500 outline-none"
-                   >
+                   <select value={formData[field.key]} onChange={(e) => setFormData({...formData, [field.key]: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-white focus:border-blue-500 outline-none">
                       {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                    </select>
                 ) : (
-                   <input 
-                      type={field.type || 'text'}
-                      value={formData[field.key]}
-                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                      className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none"
-                      placeholder={field.placeholder || ''}
-                   />
+                   <input type={field.type || 'text'} value={formData[field.key]} onChange={(e) => setFormData({...formData, [field.key]: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" placeholder={field.placeholder || ''} />
                 )}
              </div>
            ))}
@@ -171,18 +153,16 @@ export default function TeamTaweeApp() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState('week3-nov');
   
-  // Data States
   const [tasks, setTasks] = useState([]);
   const [plans, setPlans] = useState([]);
   const [media, setMedia] = useState([]);
   const [channels, setChannels] = useState([]); 
-  const [publishedLinks, setPublishedLinks] = useState([]); // New: Links from Dashboard
+  const [publishedLinks, setPublishedLinks] = useState([]); 
 
-  // UI States
   const [hideDone, setHideDone] = useState(false);
   const [filterTag, setFilterTag] = useState('All');
-  const [isGlobalLoading, setIsGlobalLoading] = useState(false); // For Loading Overlay
-  const [isDataLoading, setIsDataLoading] = useState(true); // For Initial Data Load
+  const [isGlobalLoading, setIsGlobalLoading] = useState(false); 
+  const [isDataLoading, setIsDataLoading] = useState(true); 
   
   const [editingTask, setEditingTask] = useState(null);
   const [formModalConfig, setFormModalConfig] = useState({ isOpen: false, title: '', fields: [], onSave: () => {} });
@@ -209,7 +189,6 @@ export default function TeamTaweeApp() {
 
   useEffect(() => {
     if (!currentUser) return;
-    // เรียงลำดับตามวันที่สร้างล่าสุดขึ้นก่อน (ถ้ามี field createdAt)
     const unsubTasks = onSnapshot(collection(db, "tasks"), (s) => setTasks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubPlans = onSnapshot(collection(db, "plans"), (s) => setPlans(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubMedia = onSnapshot(collection(db, "media"), (s) => setMedia(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -232,12 +211,9 @@ export default function TeamTaweeApp() {
       setIsGlobalLoading(false);
   };
 
-  // --- HELPERS ---
   const openFormModal = (title, fields, onSave) => {
     setFormModalConfig({ 
-      isOpen: true, 
-      title, 
-      fields, 
+      isOpen: true, title, fields, 
       onSave: async (data) => { 
          setIsGlobalLoading(true);
          try { await onSave(data); setFormModalConfig(prev => ({ ...prev, isOpen: false })); } 
@@ -253,11 +229,16 @@ export default function TeamTaweeApp() {
     setIsGlobalLoading(true);
     try {
         await updateDoc(doc(db, "tasks", task.id), { 
-            title: task.title, status: task.status, tag: task.tag, link: task.link, deadline: task.deadline,
-            updatedBy: currentUser.displayName, updatedAt: new Date().toISOString()
+            title: task.title || "", 
+            status: task.status || "To Do",
+            tag: task.tag || "", 
+            link: task.link || "", 
+            deadline: task.deadline || "", 
+            updatedBy: currentUser.displayName, 
+            updatedAt: new Date().toISOString()
         });
         setEditingTask(null);
-    } catch (e) { alert(e.message); }
+    } catch (e) { alert("บันทึกไม่สำเร็จ: " + e.message); }
     setIsGlobalLoading(false);
   };
 
@@ -275,7 +256,7 @@ export default function TeamTaweeApp() {
     });
   };
 
-  // --- ASSET ACTIONS (CHANNELS & MEDIA) ---
+  // --- ASSET ACTIONS ---
   const addChannel = () => {
     openFormModal("เพิ่มช่องทางเผยแพร่", [
         { key: 'name', label: 'ชื่อช่องทาง', placeholder: 'เช่น Facebook Page' },
@@ -297,7 +278,6 @@ export default function TeamTaweeApp() {
     });
   };
 
-  // --- DASHBOARD LINK ACTIONS ---
   const addPublishedLink = () => {
     openFormModal("แปะลิงก์ข่าวที่ลงแล้ว", [
         { key: 'title', label: 'หัวข้อข่าว/โพสต์', placeholder: 'เช่น ข่าวสดลงข่าวท่านทวี...' },
@@ -310,14 +290,11 @@ export default function TeamTaweeApp() {
     });
   };
   const deleteLink = async (id) => { if(confirm("ลบลิงก์นี้?")) await deleteDoc(doc(db, "published_links", id)); };
-
-  // --- GENERAL ACTIONS ---
   const updateDist = async (id, count) => updateDoc(doc(db, "channels", id), { count: Math.max(0, count) });
   const deleteChannel = async (id) => { if(confirm("ลบช่องทางนี้?")) await deleteDoc(doc(db, "channels", id)); };
   const toggleMediaActive = async (contact) => await updateDoc(doc(db, "media", contact.id), { active: !contact.active });
   const deleteMedia = async (id) => { if(confirm("ลบรายชื่อนี้?")) await deleteDoc(doc(db, "media", id)); };
 
-  // Plan Actions (Auto Calculate)
   const togglePlanItem = async (planId, itemIndex, currentItems) => {
     const newItems = [...currentItems];
     newItems[itemIndex].completed = !newItems[itemIndex].completed;
@@ -327,7 +304,6 @@ export default function TeamTaweeApp() {
   const editPlanTitle = (plan) => openFormModal("แก้ไขชื่อแผนงาน", [{key:'title', label:'ชื่อแผนงาน', defaultValue: plan.title}], async(d)=> updateDoc(doc(db,"plans",plan.id), d));
   const addPlan = () => openFormModal("สร้างแผนงานใหม่", [{key:'title', label:'ชื่อแผนงาน'}], async(d)=> addDoc(collection(db,"plans"), { ...d, progress:0, items:[] }));
 
-  // Rapid Response
   const createUrgentCase = async () => {
     if(confirm("ยืนยันเปิดเคสด่วน?")) {
         setIsGlobalLoading(true);
@@ -337,11 +313,10 @@ export default function TeamTaweeApp() {
             createdBy: currentUser.displayName, createdAt: new Date().toISOString()
         });
         setIsGlobalLoading(false);
-        alert("เปิดเคสเรียบร้อย! ระบบแจ้งเตือน Dashboard แล้ว");
+        alert("เปิดเคสเรียบร้อย! ตรวจสอบได้ที่กระดาน 4 แกน ช่อง Defender");
     }
   };
 
-  // --- RENDER PREP ---
   const groupedTasks = {
     solver: tasks.filter(t => t.columnKey === 'solver'),
     principles: tasks.filter(t => t.columnKey === 'principles'),
@@ -350,7 +325,6 @@ export default function TeamTaweeApp() {
     backoffice: tasks.filter(t => t.columnKey === 'backoffice')
   };
   const allTags = ['All', ...new Set(tasks.map(t => t.tag))];
-  const hasUrgentCase = tasks.some(t => t.tag === 'Urgent' && t.status !== 'Done');
   
   const navItems = [
     { id: 'dashboard', title: 'ภาพรวม', subtitle: 'Dashboard', icon: LayoutDashboard },
@@ -375,17 +349,6 @@ export default function TeamTaweeApp() {
           <div className="space-y-6 animate-fadeIn">
             <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" />
 
-            {/* Alert Banner */}
-            {hasUrgentCase && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg flex items-center justify-between animate-pulse shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-red-100 rounded-full"><AlertTriangle className="w-6 h-6 text-red-600" /></div>
-                        <div><h3 className="font-bold text-red-700">มีเคสด่วน! (Urgent Case Active)</h3><p className="text-xs text-red-600">โปรดตรวจสอบในหน้า "ปฏิบัติการด่วน" หรือช่อง "ตอบโต้"</p></div>
-                    </div>
-                    <button onClick={() => setActiveTab('rapidresponse')} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700 shadow">ไปจัดการทันที</button>
-                </div>
-            )}
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Work Progress */}
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
@@ -397,21 +360,40 @@ export default function TeamTaweeApp() {
                  </div>
               </div>
 
-              {/* Master Plan Preview */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm md:col-span-2">
-                 <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan Status</p><button onClick={() => setActiveTab('masterplan')} className="text-xs text-blue-600 font-bold hover:underline">ดูรายละเอียด →</button></div>
-                 <div className="space-y-4">
-                    {plans.map(plan => (
-                        <div key={plan.id}>
-                            <div className="flex justify-between text-sm mb-1"><span className="font-bold text-slate-700">{plan.title}</span><span className="text-slate-500">{plan.progress}%</span></div>
-                            <div className="w-full bg-slate-100 rounded-full h-2"><div className="bg-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: `${plan.progress}%` }}></div></div>
-                        </div>
-                    ))}
+              {/* Strategy Preview */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm col-span-1 md:col-span-2 overflow-hidden">
+                 <div className="flex justify-between items-center mb-3">
+                    <p className="text-slate-500 text-xs font-bold uppercase">Strategy Board Preview</p>
+                    <button onClick={() => setActiveTab('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button>
+                 </div>
+                 <div className="grid grid-cols-2 gap-3">
+                    {['solver', 'principles', 'defender', 'expert'].map((key) => {
+                        const items = groupedTasks[key] || [];
+                        return (
+                            <div key={key} className="bg-slate-50 p-3 rounded border border-slate-100 h-32 overflow-hidden relative">
+                                <div className="flex justify-between mb-2 border-b border-slate-100 pb-1">
+                                    <span className="text-[10px] font-bold uppercase text-slate-400">{key}</span>
+                                    <span className="text-[10px] font-bold bg-white px-1.5 rounded border border-slate-200">{items.length}</span>
+                                </div>
+                                {items.length > 0 ? (
+                                    <div className="space-y-1.5">
+                                        {items.slice(0, 3).map(t => (
+                                            <div key={t.id} className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${t.status === 'Done' ? 'bg-green-400' : 'bg-blue-400'}`}></div>
+                                                <p className="text-xs text-slate-600 truncate">{t.title}</p>
+                                            </div>
+                                        ))}
+                                        {items.length > 3 && <p className="text-[9px] text-slate-400 pl-4">...และอีก {items.length - 3} งาน</p>}
+                                    </div>
+                                ) : <p className="text-[10px] text-slate-300 text-center mt-4">- ว่าง -</p>}
+                            </div>
+                        )
+                    })}
                  </div>
               </div>
             </div>
 
-            {/* Distribution Hub (Counters) */}
+            {/* Distribution Hub */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                    <div><p className="text-slate-500 text-xs font-bold uppercase mb-1">Distribution Hub</p><h3 className="text-xl font-bold text-slate-800">ช่องทางเผยแพร่ (Channels)</h3></div>
@@ -504,7 +486,7 @@ export default function TeamTaweeApp() {
               </div>
             </div>
 
-            {/* EDIT TASK MODAL (IMPROVED) */}
+            {/* EDIT TASK MODAL */}
             {editingTask && (
                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
                   <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
@@ -518,10 +500,9 @@ export default function TeamTaweeApp() {
                         <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Deadline</label><input type="date" value={editingTask.deadline || ""} onChange={e => setEditingTask({...editingTask, deadline: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" /></div>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Link ผลงาน</label><div className="flex gap-2"><input type="text" value={editingTask.link || ""} onChange={e => setEditingTask({...editingTask, link: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" placeholder="https://..." />{editingTask.link && <a href={editingTask.link} target="_blank" rel="noreferrer" className="p-2.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"><ExternalLink className="w-5 h-5" /></a>}</div></div>
                         
-                        {/* Metadata */}
                         <div className="text-[10px] text-slate-400 bg-slate-50 p-2 rounded border border-slate-100">
-                            <p>Created: {editingTask.createdBy} ({editingTask.createdAt ? new Date(editingTask.createdAt).toLocaleDateString() : '-'})</p>
-                            {editingTask.updatedBy && <p>Last Update: {editingTask.updatedBy} ({new Date(editingTask.updatedAt).toLocaleString()})</p>}
+                            <p>Created: {editingTask.createdBy}</p>
+                            {editingTask.updatedBy && <p>Last Update: {editingTask.updatedBy}</p>}
                         </div>
 
                         <div className="flex justify-between pt-4 border-t border-slate-100">
@@ -558,7 +539,11 @@ export default function TeamTaweeApp() {
                           <li key={idx} className={`flex items-start justify-between gap-2 text-sm group/item hover:bg-white p-1 rounded transition ${item.completed ? 'opacity-40 order-last' : ''}`}>
                             <div className="flex items-center gap-2 cursor-pointer w-full" onClick={() => togglePlanItem(plan.id, originalIndex, plan.items)}>
                               {item.completed ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" /> : <Circle className="w-5 h-5 text-slate-300 hover:text-blue-400 flex-shrink-0" />}
-                              <span className={item.completed ? "line-through" : ""}>{item.text}</span>
+                              <span className={item.completed ? "" : "text-slate-700"}>{item.text}</span>
+                            </div>
+                             <div className="flex gap-1">
+                                <button onClick={() => editPlanItem(plan.id, originalIndex, plan.items)} className="text-slate-400 hover:text-blue-600"><Edit2 className="w-3 h-3" /></button>
+                                <button onClick={() => removePlanItem(plan.id, originalIndex, plan.items)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
                             </div>
                           </li>
                          );
@@ -576,7 +561,7 @@ export default function TeamTaweeApp() {
         return (
             <div className="space-y-6">
                 <PageHeader title="ปฏิบัติการด่วน (Rapid Response)" subtitle="Agile Response Unit" action={<button onClick={createUrgentCase} className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-700 shadow-lg transition whitespace-nowrap flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> เปิดเคสด่วน (New Case)</button>} />
-                <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-r-xl"><h2 className="text-xl font-bold text-red-700 flex items-center gap-2"><Zap className="w-6 h-6" /> พื้นที่ปฏิบัติการด่วน!</h2><p className="text-red-600/80 mt-1 text-sm">สำหรับประเด็นที่ต้องชี้แจง (เมื่อกดเปิดเคส ระบบจะสร้างงานในกระดานและแจ้งเตือนหน้า Dashboard)</p></div>
+                <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-r-xl"><h2 className="text-xl font-bold text-red-700 flex items-center gap-2"><Zap className="w-6 h-6" /> พื้นที่ปฏิบัติการด่วน!</h2><p className="text-red-600/80 mt-1 text-sm">สำหรับประเด็นที่ต้องชี้แจง (เมื่อกดเปิดเคส ระบบจะสร้างงานในกระดานช่อง Defender)</p></div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                         <h3 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><FileText className="w-5 h-5 text-slate-500" /> Standard Operating Procedure (SOP)</h3>
