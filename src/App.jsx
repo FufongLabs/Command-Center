@@ -39,6 +39,7 @@ const LoadingOverlay = ({ isOpen, message = "กำลังบันทึก�
   );
 };
 
+// Form Modal (Updated: Quick Tags)
 const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บันทึก" }) => {
   const [formData, setFormData] = useState({});
 
@@ -59,13 +60,15 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
            <h3 className="text-xl font-bold text-slate-800">{title}</h3>
            <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X className="w-6 h-6 text-slate-400" /></button>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-5">
            {fields.map((field) => (
              <div key={field.key}>
                 <label className="block text-xs font-bold text-slate-500 mb-1 uppercase flex items-center gap-2">
                     {field.label}
                     {field.key === 'tag' && <Tag className="w-3 h-3 text-blue-500" />}
                 </label>
+                
+                {/* Input Render Logic */}
                 {field.type === 'select' ? (
                    <select 
                       value={formData[field.key]} 
@@ -74,20 +77,6 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                    >
                       {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                    </select>
-                ) : field.type === 'datalist' ? (
-                    <div className="relative">
-                      <input 
-                        list={`list-${field.key}`}
-                        value={formData[field.key]}
-                        onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                        className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none pl-9"
-                        placeholder={field.placeholder || ''}
-                      />
-                      <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                      <datalist id={`list-${field.key}`}>
-                        {field.options.map(opt => <option key={opt} value={opt} />)}
-                      </datalist>
-                    </div>
                 ) : (
                    <input 
                       type={field.type || 'text'}
@@ -96,6 +85,21 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                       className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none"
                       placeholder={field.placeholder || ''}
                    />
+                )}
+
+                {/* Special UI for Tags: Quick Buttons */}
+                {field.key === 'tag' && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                        {PRESET_TAGS.map(tag => (
+                            <button 
+                                key={tag}
+                                onClick={() => setFormData({...formData, tag: tag})}
+                                className={`text-[10px] px-2 py-1 rounded border transition ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-400'}`}
+                            >
+                                {tag}
+                            </button>
+                        ))}
+                    </div>
                 )}
              </div>
            ))}
@@ -129,7 +133,7 @@ const StatusDonutChart = ({ stats }) => {
   const circumference = 2 * Math.PI * radius;
 
   return (
-    <div className="relative w-40 h-40 flex items-center justify-center">
+    <div className="relative w-32 h-32 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 36 36">
         <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="3.8" />
         <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-300" strokeWidth="3.8" strokeDasharray={`${circumference} ${circumference}`} />
@@ -137,8 +141,8 @@ const StatusDonutChart = ({ stats }) => {
         <circle cx="18" cy="18" r="16" fill="none" className="stroke-green-500 transition-all duration-1000" strokeWidth="3.8" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} />
       </svg>
       <div className="absolute text-center">
-        <span className="text-3xl font-black text-slate-800">{stats.total}</span>
-        <span className="block text-[10px] text-slate-400 font-bold">TASKS</span>
+        <span className="text-2xl font-black text-slate-800">{stats.total}</span>
+        <span className="block text-[8px] text-slate-400 font-bold uppercase">Tasks</span>
       </div>
     </div>
   );
@@ -206,7 +210,6 @@ export default function TeamTaweeApp() {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [selectedWeek, setSelectedWeek] = useState('week3-nov');
   
   const [tasks, setTasks] = useState([]);
   const [plans, setPlans] = useState([]);
@@ -279,7 +282,7 @@ export default function TeamTaweeApp() {
     });
   };
 
-  // --- ACTIONS ---
+  // --- TASK ACTIONS ---
   const saveTaskChange = async (task) => {
     if (!task.id) return;
     setIsGlobalLoading(true);
@@ -318,7 +321,7 @@ export default function TeamTaweeApp() {
   const addNewTask = (columnKey) => {
     openFormModal("เพิ่มงานใหม่", [
         { key: 'title', label: 'ชื่องาน', placeholder: 'ระบุชื่องาน...' },
-        { key: 'tag', label: 'Tag (เลือกหรือพิมพ์ใหม่)', type: 'datalist', options: PRESET_TAGS, placeholder: 'เช่น Viral, ลงพื้นที่' },
+        { key: 'tag', label: 'Tag (เลือกหรือพิมพ์ใหม่)', type: 'text', placeholder: 'เช่น Viral, ลงพื้นที่' },
         { key: 'role', label: 'ผู้รับผิดชอบ', placeholder: 'เช่น Chef, Hunter' },
         { key: 'deadline', label: 'กำหนดส่ง', type: 'date' }
     ], async (data) => {
@@ -329,6 +332,7 @@ export default function TeamTaweeApp() {
     });
   };
 
+  // --- ASSET ACTIONS ---
   const addChannel = () => {
     openFormModal("เพิ่มช่องทางเผยแพร่", [
         { key: 'name', label: 'ชื่อช่องทาง', placeholder: 'เช่น Facebook Page' },
@@ -369,10 +373,7 @@ export default function TeamTaweeApp() {
     });
   };
   const deleteLink = async (id) => { if(confirm("ลบลิงก์นี้?")) await deleteDoc(doc(db, "published_links", id)); };
-  
-  // ** FIX: Use || 0 to prevent NaN **
   const updateDist = async (id, count) => updateDoc(doc(db, "channels", id), { count: Math.max(0, count || 0) });
-  
   const deleteChannel = async (id) => { if(confirm("ลบช่องทางนี้?")) await deleteDoc(doc(db, "channels", id)); };
   const toggleMediaActive = async (contact) => await updateDoc(doc(db, "media", contact.id), { active: !contact.active });
   const deleteMedia = async (id) => { if(confirm("ลบรายชื่อนี้?")) await deleteDoc(doc(db, "media", id)); };
@@ -411,7 +412,9 @@ export default function TeamTaweeApp() {
   };
   
   const urgentTasks = tasks.filter(t => t.tag === 'Urgent');
-  const allTags = ['All', ...new Set(tasks.map(t => t.tag))];
+  // FIX: Combine Preset Tags with Existing Tags for better filtering
+  const allTags = ['All', ...new Set([...PRESET_TAGS, ...tasks.map(t => t.tag)].filter(Boolean))];
+  
   const navItems = [
     { id: 'dashboard', title: 'ภาพรวม', subtitle: 'Dashboard', icon: LayoutDashboard },
     { id: 'strategy', title: 'กระดาน 4 แกน', subtitle: 'Strategy', icon: Megaphone },
@@ -440,67 +443,80 @@ export default function TeamTaweeApp() {
           <div className="space-y-6 animate-fadeIn">
             <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" />
 
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Status Chart */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center flex-1">
-                 <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left">Task Status Breakdown</p>
+            {/* Dashboard Layout Revamp: 3 Col Top */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* 1. Status Chart */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                 <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left">Task Status</p>
                  <StatusDonutChart stats={taskStats} />
                  <div className="flex justify-center gap-4 mt-6 text-xs font-bold">
                     <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> เสร็จ {taskStats.done}</div>
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> กำลังทำ {taskStats.progress}</div>
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-300"></div> รอทำ {taskStats.todo}</div>
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> ทำ {taskStats.progress}</div>
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-300"></div> รอ {taskStats.todo}</div>
                  </div>
               </div>
 
-              {/* Distribution Hub */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col">
-                 <div className="p-6 border-b border-slate-100">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-slate-800">Distribution Hub</h3>
-                        <button onClick={() => setActiveTab('assets')} className="text-xs text-blue-600 hover:underline">จัดการที่ Assets →</button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                        {channels.slice(0,6).map(item => (
-                            <div key={item.id} className="bg-slate-50 p-2 rounded border border-slate-100 text-center relative group">
-                                <h4 className="font-bold text-slate-700 text-xs truncate">{item.name}</h4>
-                                <span className="text-xl font-black text-blue-600 block">{item.count || 0}</span>
-                                <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition absolute -top-2 inset-x-0">
-                                    <button onClick={() => updateDist(item.id, (item.count || 0) - 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-red-600"><Minus className="w-3 h-3" /></button>
-                                    <button onClick={() => updateDist(item.id, (item.count || 0) + 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-blue-600"><Plus className="w-3 h-3" /></button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+              {/* 2. Distribution Hub */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                 <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-slate-800">Distribution Hub</h3>
+                    <button onClick={() => setActiveTab('assets')} className="text-xs text-blue-600 hover:underline">จัดการ →</button>
                  </div>
-                 
-                 {/* Collapsible News Links */}
-                 <div className="flex-1 bg-slate-50/50">
-                    <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition border-b border-slate-200" onClick={() => setIsDistOpen(!isDistOpen)}>
-                       <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500" /><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าวที่ลงแล้ว (News Links)</h3></div>
-                       {isDistOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                    </div>
-                    {isDistOpen && (
-                        <div className="p-4 max-h-60 overflow-y-auto custom-scrollbar bg-white">
-                            <button onClick={addPublishedLink} className="w-full text-xs bg-blue-50 text-blue-600 py-2 rounded border border-blue-100 font-bold mb-3 hover:bg-blue-100">+ เพิ่มลิงก์</button>
-                            <div className="space-y-2">
-                                {publishedLinks.map(link => (
-                                    <div key={link.id} className="flex justify-between items-start p-2 border rounded hover:bg-slate-50 group">
-                                        <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline truncate w-48 font-medium block">{link.title}</a>
-                                        <button onClick={() => deleteLink(link.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
-                                    </div>
-                                ))}
+                 <div className="grid grid-cols-2 gap-3 flex-1 content-start">
+                    {channels.slice(0,4).map(item => (
+                        <div key={item.id} className="bg-slate-50 p-3 rounded border border-slate-100 text-center relative group">
+                            <h4 className="font-bold text-slate-700 text-xs truncate">{item.name}</h4>
+                            <span className="text-2xl font-black text-blue-600 block">{item.count || 0}</span>
+                            <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition absolute -top-2 inset-x-0">
+                                <button onClick={() => updateDist(item.id, (item.count || 0) - 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-red-600"><Minus className="w-3 h-3" /></button>
+                                <button onClick={() => updateDist(item.id, (item.count || 0) + 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-blue-600"><Plus className="w-3 h-3" /></button>
                             </div>
                         </div>
-                    )}
+                    ))}
+                 </div>
+              </div>
+
+              {/* 3. Master Plan Preview */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                 <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan</p><button onClick={() => setActiveTab('masterplan')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button></div>
+                 <div className="space-y-4 flex-1">
+                    {plans.slice(0, 3).map(plan => (
+                        <div key={plan.id}>
+                            <div className="flex justify-between text-sm mb-1"><span className="font-bold text-slate-700 truncate w-40">{plan.title}</span><span className="text-slate-500 text-xs">{plan.progress}%</span></div>
+                            <div className="w-full bg-slate-100 rounded-full h-1.5"><div className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${plan.progress}%` }}></div></div>
+                        </div>
+                    ))}
                  </div>
               </div>
             </div>
 
-            {/* Strategy Preview */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-4">
+            {/* Collapsible News Links */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 flex justify-between items-center bg-slate-50 cursor-pointer hover:bg-slate-100 transition" onClick={() => setIsDistOpen(!isDistOpen)}>
+                   <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500" /><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าวที่ลงแล้ว (News Links)</h3></div>
+                   {isDistOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </div>
+                {isDistOpen && (
+                    <div className="p-4 max-h-60 overflow-y-auto custom-scrollbar bg-white">
+                        <button onClick={addPublishedLink} className="w-full text-xs bg-blue-50 text-blue-600 py-2 rounded border border-blue-100 font-bold mb-3 hover:bg-blue-100">+ เพิ่มลิงก์</button>
+                        <div className="space-y-2">
+                            {publishedLinks.map(link => (
+                                <div key={link.id} className="flex justify-between items-start p-2 border rounded hover:bg-slate-50 group">
+                                    <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline truncate w-full font-medium block">{link.title}</a>
+                                    <button onClick={() => deleteLink(link.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Strategy Preview (Full Width) */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                  <div className="flex justify-between items-center mb-3">
                     <p className="text-slate-500 text-xs font-bold uppercase">Strategy Board Preview</p>
-                    <button onClick={() => setActiveTab('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button>
+                    <button onClick={() => setActiveTab('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ไปที่กระดาน →</button>
                  </div>
                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {['solver', 'principles', 'defender', 'expert'].map((key) => {
@@ -568,7 +584,7 @@ export default function TeamTaweeApp() {
               </div>
             </div>
 
-            {/* EDIT TASK MODAL */}
+            {/* EDIT TASK MODAL (Updated with Quick Tags) */}
             {editingTask && (
                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
                   <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
@@ -577,12 +593,9 @@ export default function TeamTaweeApp() {
                         <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">ชื่องาน</label><input type="text" value={editingTask.title} onChange={e => setEditingTask({...editingTask, title: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" /></div>
                         <div className="grid grid-cols-2 gap-4">
                            <div>
-                             <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Tag</label>
-                             <div className="relative">
-                                <input list="edit-tag-options" type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none pl-9" />
-                                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                                <datalist id="edit-tag-options">{PRESET_TAGS.map(t=><option key={t} value={t}/>)}</datalist>
-                             </div>
+                             <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Tag (เลือก/พิมพ์)</label>
+                             <input type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" />
+                             <div className="mt-2 flex flex-wrap gap-2">{PRESET_TAGS.map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag: t})} className={`text-[10px] px-2 py-1 rounded border ${editingTask.tag===t ? 'bg-blue-600 text-white' : 'bg-slate-50'}`}>{t}</button>)}</div>
                            </div>
                            <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">สถานะ</label><select value={editingTask.status} onChange={e => setEditingTask({...editingTask, status: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-white focus:border-blue-500 outline-none"><option value="To Do">To Do</option><option value="In Progress">In Progress</option><option value="In Review">In Review</option><option value="Done">Done</option></select></div>
                         </div>
@@ -625,14 +638,14 @@ export default function TeamTaweeApp() {
                       {sortedItems.map((item, idx) => {
                          const originalIndex = plan.items.indexOf(item); 
                          return (
-                          <li key={idx} className={`flex items-center justify-between gap-2 text-sm p-1 rounded transition group/item hover:bg-white ${item.completed ? 'opacity-40 order-last' : ''}`}>
+                          <li key={idx} className={`flex items-center justify-between gap-2 text-sm p-1 rounded transition ${item.completed ? 'opacity-40 order-last' : ''}`}>
                             <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => togglePlanItem(plan.id, originalIndex, plan.items)}>
                               {item.completed ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" /> : <Circle className="w-5 h-5 text-slate-300 hover:text-blue-400 flex-shrink-0" />}
                               <span className={item.completed ? "" : "text-slate-700"}>{item.text}</span>
                             </div>
-                            <div className="flex gap-1 w-16 justify-end">
-                                <button onClick={() => editPlanItem(plan.id, originalIndex, plan.items)} className="text-slate-400 hover:text-blue-600 p-1"><Edit2 className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => removePlanItem(plan.id, originalIndex, plan.items)} className="text-slate-400 hover:text-red-500 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <div className="flex gap-2">
+                                <button onClick={() => editPlanItem(plan.id, originalIndex, plan.items)} className="text-slate-300 hover:text-blue-600"><Edit2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => removePlanItem(plan.id, originalIndex, plan.items)} className="text-slate-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
                           </li>
                          );
