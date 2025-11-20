@@ -15,7 +15,7 @@ import {
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Clock, ExternalLink, Eye, FileText, Share2, Plus, 
-  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, Save, RefreshCw
+  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw
 } from 'lucide-react';
 
 // --- MOCK DATA (สำหรับกด Reset) ---
@@ -87,7 +87,7 @@ export default function TeamTaweeApp() {
   const [editingTask, setEditingTask] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // --- FIREBASE LISTENERS (ดึงข้อมูลตลอดเวลา) ---
+  // --- FIREBASE LISTENERS ---
   useEffect(() => {
     const unsubTasks = onSnapshot(collection(db, "tasks"), (snapshot) => {
       setTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -103,20 +103,14 @@ export default function TeamTaweeApp() {
   }, []);
 
   // --- ACTIONS ---
-
-  // ฟังก์ชันลงข้อมูลตัวอย่าง (ใช้ครั้งแรก)
   const seedData = async () => {
     if (!window.confirm("ต้องการล้างข้อมูลเก่าและลงข้อมูลตัวอย่างใหม่ทั้งหมด?")) return;
     setLoading(true);
     try {
-      // ลบของเก่า (ถ้ามี) - *ทำแบบง่ายคือไม่ลบแต่เพิ่มทับ* หรือใช้ Batch delete (ซับซ้อนไป)
-      // เอาแบบง่าย: Loop เพิ่มข้อมูลใหม่เลย
       const batch = writeBatch(db);
-      
       initialMockData.tasks.forEach(item => { const ref = doc(collection(db, "tasks")); batch.set(ref, item); });
       initialMockData.distribution.forEach(item => { const ref = doc(collection(db, "distribution")); batch.set(ref, item); });
       initialMockData.plans.forEach(item => { const ref = doc(collection(db, "plans")); batch.set(ref, item); });
-
       await batch.commit();
       alert("ลงข้อมูลตัวอย่างเรียบร้อย!");
     } catch (error) {
@@ -166,7 +160,6 @@ export default function TeamTaweeApp() {
   };
 
   // --- PREPARE DATA FOR VIEW ---
-  // จัดกลุ่ม Tasks ตาม columnKey
   const groupedTasks = {
     solver: tasks.filter(t => t.columnKey === 'solver'),
     principles: tasks.filter(t => t.columnKey === 'principles'),
@@ -175,16 +168,17 @@ export default function TeamTaweeApp() {
     backoffice: tasks.filter(t => t.columnKey === 'backoffice')
   };
 
+  // --- ปรับปรุง Nav Items (แยกภาษาไทย/อังกฤษ) ---
   const navItems = [
-    { id: 'dashboard', label: 'ภาพรวม (Dashboard)', icon: LayoutDashboard },
-    { id: 'strategy', label: 'กระดาน 4 แกน (Strategy)', icon: Megaphone },
-    { id: 'masterplan', label: 'แผนงานหลัก (Master Plan)', icon: Map },
-    { id: 'rapidresponse', label: 'ปฏิบัติการด่วน (Rapid Response)', icon: Zap, color: 'text-red-500' },
-    { id: 'assets', label: 'คลังอาวุธ (Assets)', icon: Database },
+    { id: 'dashboard', title: 'ภาพรวม', subtitle: 'Dashboard', icon: LayoutDashboard },
+    { id: 'strategy', title: 'กระดาน 4 แกน', subtitle: 'Strategy', icon: Megaphone },
+    { id: 'masterplan', title: 'แผนงานหลัก', subtitle: 'Master Plan', icon: Map },
+    { id: 'rapidresponse', title: 'ปฏิบัติการด่วน', subtitle: 'Rapid Response', icon: Zap, color: 'text-red-500' },
+    { id: 'assets', title: 'คลังอาวุธ', subtitle: 'Assets', icon: Database },
   ];
 
   const renderContent = () => {
-    if (loading) return <div className="p-10 text-center">กำลังโหลดข้อมูลจาก Firebase...</div>;
+    if (loading) return <div className="p-10 text-center text-slate-500 animate-pulse">กำลังโหลดข้อมูลจากฐานข้อมูล...</div>;
 
     switch (activeTab) {
       case 'dashboard':
@@ -193,7 +187,6 @@ export default function TeamTaweeApp() {
 
         return (
           <div className="space-y-6 animate-fadeIn">
-            {/* Period Selector */}
             <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
@@ -212,7 +205,7 @@ export default function TeamTaweeApp() {
                   </select>
                 </div>
               </div>
-              {/* Seed Data Button (Show only if empty) */}
+              {/* Seed Data Button */}
               {tasks.length === 0 && (
                  <button onClick={seedData} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow hover:bg-green-700">
                     <RefreshCw className="w-4 h-4" /> 📥 ลงข้อมูลตัวอย่าง (Reset Data)
@@ -220,7 +213,6 @@ export default function TeamTaweeApp() {
               )}
             </div>
 
-            {/* Stats & Graphs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
                  <p className="text-slate-500 text-xs font-bold uppercase mb-4 w-full text-left">Work Progress</p>
@@ -231,7 +223,6 @@ export default function TeamTaweeApp() {
                  </div>
               </div>
 
-              {/* Strategy Preview */}
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm col-span-1 md:col-span-2 overflow-hidden">
                  <div className="flex justify-between items-center mb-3">
                     <p className="text-slate-500 text-xs font-bold uppercase">Strategy Board Preview</p>
@@ -255,7 +246,6 @@ export default function TeamTaweeApp() {
               </div>
             </div>
 
-            {/* Distribution Hub (Real-time) */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                    <div>
@@ -416,6 +406,7 @@ export default function TeamTaweeApp() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
+      {/* --- แก้ไข Sidebar ตรงนี้ --- */}
       <aside className={`bg-slate-900 text-white w-full md:w-64 flex-shrink-0 transition-all duration-300 fixed md:sticky top-0 z-30 h-screen ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-6 border-b border-slate-700 flex justify-between items-center">
           <div><h1 className="text-xl font-black tracking-wider text-white">TEAM TAWEE</h1><p className="text-[10px] text-blue-400 font-bold tracking-widest uppercase mt-1">Stand Together</p></div>
@@ -423,12 +414,21 @@ export default function TeamTaweeApp() {
         </div>
         <nav className="p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-140px)]">
           {navItems.map(item => (
-            <button key={item.id} onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-              <item.icon className={`w-5 h-5 ${item.color || ''}`} /><span className="font-medium text-sm">{item.label}</span>
+            <button 
+              key={item.id} 
+              onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-left ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            >
+              <item.icon className={`w-5 h-5 flex-shrink-0 ${item.color || ''}`} />
+              <div className="flex flex-col">
+                <span className="font-bold text-sm leading-tight">{item.title}</span>
+                <span className="text-[10px] opacity-80 font-medium">({item.subtitle})</span>
+              </div>
             </button>
           ))}
         </nav>
       </aside>
+
       <main className="flex-1 md:ml-0 min-h-screen overflow-y-auto w-full">
         <div className="md:hidden bg-white p-4 flex justify-between items-center shadow-sm sticky top-0 z-20 border-b border-slate-100">
           <div><h2 className="font-black text-slate-900">TEAM TAWEE</h2><p className="text-[10px] text-slate-500">Stand Together</p></div>
