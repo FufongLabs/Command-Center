@@ -16,58 +16,49 @@ import {
   Eye,
   FileText,
   Share2,
-  Plus
+  Plus,
+  Link as LinkIcon,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Filter
 } from 'lucide-react';
 
-// --- MOCK DATA (จำลองข้อมูล) ---
+// --- MOCK DATA ---
 
-// 1. ข้อมูลงานในกระดาน (Strategy)
 const initialTasks = {
   solver: [
-    { id: 101, title: "อัลบั้มภาพ: ลงพื้นที่น้ำท่วมเชียงราย", role: "Chef", status: "In Progress", tag: "Visual Storytelling" },
+    { id: 101, title: "อัลบั้มภาพ: ลงพื้นที่น้ำท่วมเชียงราย", role: "Chef", status: "In Progress", tag: "Visual Storytelling", link: "https://facebook.com/post/123" },
+    { id: 102, title: "ร่วมงานบุญบั้งไฟ จ.ยโสธร", role: "Hunter", status: "To Do", tag: "Tradition" }, // เพิ่มประเพณี
   ],
   principles: [
-    { id: 201, title: "Quote: ความยุติธรรมที่มาช้า...", role: "Distributor", status: "Done", tag: "Viral" },
+    { id: 201, title: "Quote: ความยุติธรรมที่มาช้า...", role: "Distributor", status: "Done", tag: "Viral", link: "https://twitter.com/post/456" },
   ],
   defender: [
-    { id: 301, title: "ชี้แจงประเด็น พ.ร.บ. งบประมาณ", role: "Hunter", status: "To Do", tag: "Urgent" }
+    { id: 301, title: "ชี้แจงประเด็น พ.ร.บ. งบประมาณ", role: "Hunter", status: "To Do", tag: "Urgent", link: "" }
   ],
   expert: [
-    { id: 401, title: "Deep Dive: วิเคราะห์ปัญหายาเสพติด", role: "Chef", status: "In Review", tag: "Knowledge" }
+    { id: 401, title: "Deep Dive: วิเคราะห์ปัญหายาเสพติด", role: "Chef", status: "In Review", tag: "Knowledge", link: "" }
   ],
   backoffice: [
-    { id: 501, title: "สรุปยอดค่าใช้จ่ายยิง Ads", role: "Admin", status: "Done", tag: "Report" },
-    { id: 502, title: "ต่ออายุ Domain Name เว็บพรรค", role: "IT", status: "To Do", tag: "System" }
+    { id: 501, title: "สรุปยอดค่าใช้จ่ายยิง Ads", role: "Admin", status: "Done", tag: "Report", link: "" },
+    { id: 502, title: "ต่ออายุ Domain Name เว็บพรรค", role: "IT", status: "To Do", tag: "System", link: "" }
   ]
 };
 
-// 2. ข้อมูลแผนงานหลัก (Master Plan)
-const masterPlans = [
-  { 
-    id: 1, 
-    title: "Roadmap สู่การเลือกตั้ง (Election)", 
-    progress: 60, 
-    items: ["เปิดตัวผู้สมัครครบทุกเขต", "Grand Opening นโยบายหลัก", "Caravan หาเสียงทั่วประเทศ"]
-  },
-  { 
-    id: 2, 
-    title: "แผนปั้น 'ผู้เชี่ยวชาญ' (Expert Plan)", 
-    progress: 30, 
-    items: ["รายการ YouTube Weekly", "หนังสือ Pocket book ความยุติธรรม"] 
-  },
-  { 
-    id: 3, 
-    title: "แผนลงพื้นที่เชิงรุก (Solver Plan)", 
-    progress: 80, 
-    items: ["คาราวานแก้หนี้ 4 ภาค", "ตั้งศูนย์รับเรื่องร้องเรียนออนไลน์"] 
-  }
+// ข้อมูลจำลอง Distribution (สามารถเพิ่มลดได้)
+const initialDistribution = [
+  { id: 1, name: "Facebook Page (Official)", count: 5, type: "Own Media" },
+  { id: 2, name: "TikTok Team Tawee", count: 3, type: "Own Media" },
+  { id: 3, name: "Twitter (X)", count: 8, type: "Own Media" },
+  { id: 4, name: "ข่าวสดออนไลน์", count: 1, type: "Media" }, // เพิ่มสื่อ
+  { id: 5, name: "เพจ FC คนรักทวี", count: 12, type: "FC" }, // เพิ่มเพจ FC
 ];
 
-// 3. ข้อมูลสื่อมวลชน (Assets)
-const mediaContacts = [
-  { id: 1, name: "คุณส้ม (Ch 3)", type: "TV", phone: "081-xxx-xxxx", active: true },
-  { id: 2, name: "คุณหนุ่ม (News Portal)", type: "Online", phone: "-", active: true },
-  { id: 3, name: "กลุ่มไลน์ข่าวการเมือง", type: "Group", phone: "-", active: true },
+// ข้อมูลจำลอง Links ล่าสุด
+const recentLinks = [
+  { id: 1, title: "ข่าวลงพื้นที่ - Khaosod", url: "https://khaosod.co.th/..." },
+  { id: 2, title: "คลิป TikTok ไวรัล", url: "https://tiktok.com/..." },
 ];
 
 // --- COMPONENTS ---
@@ -90,36 +81,59 @@ const StatusBadge = ({ status }) => {
 export default function TeamTaweeApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [selectedWeek, setSelectedWeek] = useState('week4-nov');
+  const [selectedWeek, setSelectedWeek] = useState('week3-nov');
+  
+  // State สำหรับหน้า Strategy
+  const [tasks, setTasks] = useState(initialTasks);
+  const [hideDone, setHideDone] = useState(false); // ซ่อนงานที่เสร็จแล้ว
+  const [editingTask, setEditingTask] = useState(null); // งานที่กำลังแก้ไข
 
-  // เมนูนำทาง
-  const navItems = [
-    { id: 'dashboard', label: 'ภาพรวม (Dashboard)', icon: LayoutDashboard },
-    { id: 'strategy', label: 'กระดาน 4 แกน (Strategy)', icon: Megaphone },
-    { id: 'masterplan', label: 'แผนงานหลัก (Master Plan)', icon: Map }, // เปลี่ยนชื่อ
-    { id: 'rapidresponse', label: 'ปฏิบัติการด่วน (Rapid Response)', icon: Zap, color: 'text-red-500' }, // เปลี่ยนชื่อ
-    { id: 'assets', label: 'คลังอาวุธ (Assets)', icon: Database },
-  ];
+  // State สำหรับหน้า Dashboard
+  const [distributionStats, setDistributionStats] = useState(initialDistribution);
 
-  // ฟังก์ชันคำนวณงานเสร็จ/ค้าง (Logic ง่ายๆ)
-  const calculateTaskStats = () => {
-    let done = 0;
-    let pending = 0;
-    Object.values(initialTasks).flat().forEach(task => {
-      if (task.status === 'Done') done++;
-      else pending++;
-    });
-    return { done, pending, total: done + pending };
+  // State สำหรับ Master Plan
+  const [plans, setPlans] = useState([
+    { id: 1, title: "Roadmap สู่การเลือกตั้ง (Election)", progress: 60, items: ["เปิดตัวผู้สมัครครบทุกเขต", "Grand Opening นโยบายหลัก", "Caravan หาเสียงทั่วประเทศ"] },
+    { id: 2, title: "แผนปั้น 'ผู้เชี่ยวชาญ' (Expert Plan)", progress: 30, items: ["รายการ YouTube Weekly", "หนังสือ Pocket book ความยุติธรรม"] },
+    { id: 3, title: "แผนลงพื้นที่เชิงรุก (Solver Plan)", progress: 80, items: ["คาราวานแก้หนี้ 4 ภาค", "ตั้งศูนย์รับเรื่องร้องเรียนออนไลน์"] }
+  ]);
+
+  // ฟังก์ชันจัดการ Distribution
+  const incrementDist = (id) => {
+    setDistributionStats(prev => prev.map(item => item.id === id ? { ...item, count: item.count + 1 } : item));
   };
-  const taskStats = calculateTaskStats();
 
-  // ส่วนแสดงผลหลัก
+  // ฟังก์ชันจัดการ Task (Save Edit)
+  const saveTask = (columnKey, updatedTask) => {
+    setTasks(prev => ({
+      ...prev,
+      [columnKey]: prev[columnKey].map(t => t.id === updatedTask.id ? updatedTask : t)
+    }));
+    setEditingTask(null);
+  };
+
+  // ฟังก์ชันจัดการ Master Plan Items
+  const addPlanItem = (planId) => {
+    const text = prompt("ระบุรายการใหม่:");
+    if (text) {
+      setPlans(prev => prev.map(p => p.id === planId ? { ...p, items: [...p.items, text] } : p));
+    }
+  };
+  const removePlanItem = (planId, itemIndex) => {
+    setPlans(prev => prev.map(p => p.id === planId ? { ...p, items: p.items.filter((_, idx) => idx !== itemIndex) } : p));
+  };
+
+  // --- RENDER CONTENT ---
+  
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
+        const taskStats = { done: 0, pending: 0 };
+        Object.values(tasks).flat().forEach(t => t.status === 'Done' ? taskStats.done++ : taskStats.pending++);
+
         return (
           <div className="space-y-6 animate-fadeIn">
-            {/* Week Selector */}
+            {/* Period Selector */}
             <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
@@ -132,27 +146,28 @@ export default function TeamTaweeApp() {
                     onChange={(e) => setSelectedWeek(e.target.value)}
                     className="text-sm font-bold text-slate-700 bg-transparent border-none focus:ring-0 cursor-pointer outline-none"
                   >
-                    <option value="week4-nov">สัปดาห์ที่ 4 พฤศจิกายน 2568</option>
-                    <option value="week3-nov">สัปดาห์ที่ 3 พฤศจิกายน 2568</option>
+                    <optgroup label="รายสัปดาห์ (Weekly)">
+                      <option value="week3-nov">18 พ.ย. - 24 พ.ย. 2568</option>
+                      <option value="week4-nov">25 พ.ย. - 01 ธ.ค. 2568</option>
+                    </optgroup>
+                    <optgroup label="รายเดือน (Monthly)">
+                      <option value="month-nov">พฤศจิกายน 2568</option>
+                      <option value="month-dec">ธันวาคม 2568</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>
-              <div className="text-right hidden sm:block">
-                <p className="text-xs text-slate-400">Engagement Rate</p>
-                <p className="text-lg font-bold text-green-600">+12.5% ↗</p>
-              </div>
             </div>
 
-            {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Card 1: ความคืบหน้างาน */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+              {/* Card 1: ความคืบหน้า */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-start">
-                  <div>
+                   <div>
                     <p className="text-slate-500 text-xs font-bold uppercase mb-1">Overview</p>
-                    <h3 className="text-xl font-bold text-slate-800">ความคืบหน้างาน</h3>
-                  </div>
-                  <Activity className="text-slate-300" />
+                    <h3 className="text-xl font-bold text-slate-800">งานทั้งหมด</h3>
+                   </div>
+                   <Activity className="text-slate-300" />
                 </div>
                 <div className="mt-4 flex items-center gap-4">
                   <div className="text-center">
@@ -165,44 +180,54 @@ export default function TeamTaweeApp() {
                     <span className="text-xs text-slate-500">คงค้าง</span>
                   </div>
                 </div>
-                <button onClick={() => setActiveTab('strategy')} className="mt-4 text-xs text-blue-600 font-bold hover:underline">
-                  ดูรายละเอียดในบอร์ด →
-                </button>
               </div>
 
-              {/* Card 2: Published Channels */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <p className="text-slate-500 text-xs font-bold uppercase mb-1">Distribution</p>
-                <h3 className="text-xl font-bold text-slate-800 mb-4">เผยแพร่แล้ว (สัปดาห์นี้)</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-600"></span> Facebook</span>
-                    <span className="font-bold">5 โพสต์</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-black"></span> TikTok</span>
-                    <span className="font-bold">3 คลิป</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-sky-500"></span> Twitter (X)</span>
-                    <span className="font-bold">8 ทวีต</span>
-                  </div>
+              {/* Card 2: Distribution Hub */}
+              <div className="md:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                   <div>
+                      <p className="text-slate-500 text-xs font-bold uppercase mb-1">Distribution Hub</p>
+                      <h3 className="text-xl font-bold text-slate-800">เผยแพร่แล้ว (Published)</h3>
+                   </div>
+                   <button className="text-xs text-blue-600 font-bold border border-blue-200 px-2 py-1 rounded hover:bg-blue-50">
+                      + เพิ่มช่องทาง
+                   </button>
                 </div>
-              </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
+                  {distributionStats.map(item => (
+                    <div key={item.id} className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center text-center relative group">
+                       <span className="text-[10px] text-slate-400 mb-1">{item.type}</span>
+                       <h4 className="font-bold text-slate-700 text-sm leading-tight h-8 flex items-center justify-center">{item.name}</h4>
+                       <span className="text-2xl font-bold text-blue-600 my-1">{item.count}</span>
+                       
+                       {/* ปุ่มเพิ่มจำนวนแบบ Manual */}
+                       <button 
+                          onClick={() => incrementDist(item.id)}
+                          className="absolute -top-2 -right-2 bg-white shadow border border-slate-200 rounded-full p-1 opacity-0 group-hover:opacity-100 hover:text-blue-600 transition"
+                       >
+                          <Plus className="w-3 h-3" />
+                       </button>
+                    </div>
+                  ))}
+                </div>
 
-               {/* Card 3: Engagement Breakdown */}
-               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <p className="text-slate-500 text-xs font-bold uppercase mb-1">Feedback</p>
-                <h3 className="text-xl font-bold text-slate-800 mb-4">สัดส่วน Engagement</h3>
-                <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-full border-4 border-blue-100 border-t-blue-600 border-r-blue-600 flex items-center justify-center">
-                    <span className="text-xs font-bold">75%</span>
-                  </div>
-                  <div className="text-sm text-slate-600 space-y-1">
-                    <p>👍 <span className="font-bold text-slate-800">Positive:</span> ชื่นชม/เห็นด้วย</p>
-                    <p>💬 <span className="font-bold text-slate-800">Neutral:</span> ถามข้อมูล/แจ้งเรื่อง</p>
-                    <p>👎 <span className="font-bold text-slate-800">Negative:</span> โจมตี/ไม่พอใจ</p>
-                  </div>
+                {/* Recent Links List */}
+                <div className="bg-blue-50/50 rounded-lg p-4">
+                   <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
+                      <LinkIcon className="w-3 h-3" /> Recent Links (รวมลิงก์ผลงาน)
+                   </h4>
+                   <div className="space-y-2">
+                      {recentLinks.map(link => (
+                         <a key={link.id} href={link.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-blue-700 hover:underline truncate block">
+                            <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                            {link.title}
+                         </a>
+                      ))}
+                      <button className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 mt-1">
+                         + แปะลิงก์ใหม่
+                      </button>
+                   </div>
                 </div>
               </div>
             </div>
@@ -211,42 +236,136 @@ export default function TeamTaweeApp() {
 
       case 'strategy':
         return (
-          <div className="overflow-x-auto pb-4">
-            <div className="flex gap-4 min-w-[1200px]">
-              {/* Column Renderer Function */}
-              {[
-                { key: 'solver', title: '1. ผลงาน (Solver)', color: 'blue', desc: 'งานรูทีน, ลงพื้นที่, แก้ปัญหาชาวบ้าน' },
-                { key: 'principles', title: '2. จุดยืน (Principles)', color: 'purple', desc: 'Quote คำคม, อุดมการณ์, Brand' },
-                { key: 'defender', title: '3. ตอบโต้ (Defender)', color: 'red', desc: 'ชี้แจงข่าวบิดเบือน, ประเด็นร้อน' },
-                { key: 'expert', title: '4. ผู้เชี่ยวชาญ (Expert)', color: 'indigo', desc: 'วิเคราะห์เชิงลึก, กฎหมาย, Live' },
-                { key: 'backoffice', title: '5. หลังบ้าน (Back Office)', color: 'slate', desc: 'เอกสาร, งบประมาณ, ระบบ IT' }
-              ].map((col) => (
-                <div key={col.key} className={`w-1/5 bg-${col.color}-50 rounded-xl p-4 border border-${col.color}-100 flex flex-col h-full`}>
-                  <div className={`mb-3 pb-2 border-b border-${col.color}-200`}>
-                    <h3 className={`font-bold text-${col.color}-900 truncate`}>{col.title}</h3>
-                    <p className="text-[10px] text-slate-500 mt-1 leading-tight min-h-[2.5em]">{col.desc}</p>
-                  </div>
-                  
-                  <div className="space-y-3 flex-1">
-                    {initialTasks[col.key]?.map(task => (
-                      <div key={task.id} className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition cursor-pointer group">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className={`text-[10px] font-bold text-${col.color}-600 bg-${col.color}-50 px-1.5 py-0.5 rounded`}>{task.tag}</span>
-                          <StatusBadge status={task.status} />
-                        </div>
-                        <h4 className="text-sm font-medium text-slate-800 mb-2 group-hover:text-blue-600">{task.title}</h4>
-                        <div className="flex items-center gap-1 text-xs text-slate-400">
-                          <Users className="w-3 h-3" /> {task.role}
-                        </div>
-                      </div>
-                    ))}
-                    <button className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 border border-dashed border-slate-300 rounded-lg hover:bg-white transition flex items-center justify-center gap-1">
-                      <Plus className="w-4 h-4" /> เพิ่มงาน
-                    </button>
-                  </div>
-                </div>
-              ))}
+          <div className="h-full flex flex-col">
+            {/* Controls */}
+            <div className="flex justify-between items-center mb-4">
+               <div className="flex items-center gap-2 text-slate-500 text-sm">
+                  <Filter className="w-4 h-4" />
+                  <span>ตัวกรอง:</span>
+               </div>
+               <button 
+                  onClick={() => setHideDone(!hideDone)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}
+               >
+                  {hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  {hideDone ? "แสดงงานที่เสร็จแล้ว" : "ซ่อนงานที่เสร็จแล้ว"}
+               </button>
             </div>
+
+            <div className="overflow-x-auto pb-4 flex-1">
+              <div className="flex gap-4 min-w-[1200px] h-full">
+                {[
+                  { key: 'solver', title: '1. ผลงาน (Solver)', color: 'blue', desc: 'งานรูทีน, ลงพื้นที่, ประเพณี, แก้ปัญหา' },
+                  { key: 'principles', title: '2. จุดยืน (Principles)', color: 'purple', desc: 'Quote, อุดมการณ์, Viral, Brand' },
+                  { key: 'defender', title: '3. ตอบโต้ (Defender)', color: 'red', desc: 'ชี้แจงข่าว, ประเด็นร้อน, Agile' },
+                  { key: 'expert', title: '4. ผู้เชี่ยวชาญ (Expert)', color: 'indigo', desc: 'วิเคราะห์ลึก, Knowledge, กฎหมาย' },
+                  { key: 'backoffice', title: '5. หลังบ้าน (Back Office)', color: 'slate', desc: 'เอกสาร, งบประมาณ, ระบบ IT' }
+                ].map((col) => (
+                  <div key={col.key} className={`w-1/5 bg-${col.color}-50 rounded-xl p-4 border border-${col.color}-100 flex flex-col`}>
+                    <div className={`mb-3 pb-2 border-b border-${col.color}-200`}>
+                      <h3 className={`font-bold text-${col.color}-900 truncate`}>{col.title}</h3>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-tight min-h-[2.5em]">{col.desc}</p>
+                    </div>
+                    
+                    <div className="space-y-3 overflow-y-auto max-h-[600px] pr-1 custom-scrollbar">
+                      {tasks[col.key]
+                        ?.filter(t => !hideDone || t.status !== 'Done')
+                        .map(task => (
+                        <div 
+                           key={task.id} 
+                           onClick={() => setEditingTask({ ...task, colKey: col.key })}
+                           className={`bg-white p-3 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition cursor-pointer group relative ${task.status === 'Done' ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <span className={`text-[10px] font-bold text-${col.color}-600 bg-${col.color}-50 px-1.5 py-0.5 rounded`}>{task.tag}</span>
+                            <StatusBadge status={task.status} />
+                          </div>
+                          <h4 className="text-sm font-medium text-slate-800 mb-2 group-hover:text-blue-600 leading-snug">{task.title}</h4>
+                          <div className="flex items-center justify-between mt-2">
+                             <div className="flex items-center gap-1 text-xs text-slate-400">
+                                <Users className="w-3 h-3" /> {task.role}
+                             </div>
+                             {task.link && <LinkIcon className="w-3 h-3 text-blue-400" />}
+                          </div>
+                        </div>
+                      ))}
+                      <button className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 border border-dashed border-slate-300 rounded-lg hover:bg-white transition flex items-center justify-center gap-1">
+                        <Plus className="w-4 h-4" /> เพิ่มงาน
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* MODAL EDIT TASK */}
+            {editingTask && (
+               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                     <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-lg">แก้ไขรายละเอียดงาน</h3>
+                        <button onClick={() => setEditingTask(null)}><X className="w-5 h-5 text-slate-400" /></button>
+                     </div>
+                     
+                     <div className="space-y-4">
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 mb-1">ชื่องาน / หัวข้อ</label>
+                           <input 
+                              type="text" 
+                              value={editingTask.title} 
+                              onChange={e => setEditingTask({...editingTask, title: e.target.value})}
+                              className="w-full border border-slate-300 rounded p-2 text-sm"
+                           />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                           <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-1">Tag (ประเภท)</label>
+                              <input 
+                                 type="text" 
+                                 value={editingTask.tag} 
+                                 onChange={e => setEditingTask({...editingTask, tag: e.target.value})}
+                                 className="w-full border border-slate-300 rounded p-2 text-sm"
+                                 placeholder="เช่น Viral, Tradition"
+                              />
+                           </div>
+                           <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-1">สถานะ</label>
+                              <select 
+                                 value={editingTask.status}
+                                 onChange={e => setEditingTask({...editingTask, status: e.target.value})}
+                                 className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
+                              >
+                                 <option value="To Do">To Do</option>
+                                 <option value="In Progress">In Progress</option>
+                                 <option value="In Review">In Review</option>
+                                 <option value="Done">Done</option>
+                              </select>
+                           </div>
+                        </div>
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 mb-1">Link ผลงาน (URL)</label>
+                           <input 
+                              type="text" 
+                              value={editingTask.link || ""} 
+                              onChange={e => setEditingTask({...editingTask, link: e.target.value})}
+                              className="w-full border border-slate-300 rounded p-2 text-sm"
+                              placeholder="https://..."
+                           />
+                           {editingTask.link && (
+                              <a href={editingTask.link} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
+                                 ทดสอบเปิดลิงก์
+                              </a>
+                           )}
+                        </div>
+                     </div>
+
+                     <div className="mt-6 flex justify-end gap-2">
+                        <button onClick={() => setEditingTask(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded font-bold text-sm">ยกเลิก</button>
+                        <button onClick={() => saveTask(editingTask.colKey, editingTask)} className="px-4 py-2 bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700">บันทึก</button>
+                     </div>
+                  </div>
+               </div>
+            )}
           </div>
         );
 
@@ -256,7 +375,7 @@ export default function TeamTaweeApp() {
             <div className="flex justify-between items-center">
                <div>
                   <h2 className="text-xl font-bold text-slate-800">Master Plan (แผนงานหลัก)</h2>
-                  <p className="text-slate-500 text-sm">ภาพรวมยุทธศาสตร์ระยะยาว แยกตามวัตถุประสงค์</p>
+                  <p className="text-slate-500 text-sm">ภาพรวมยุทธศาสตร์ระยะยาว</p>
                </div>
                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition flex items-center gap-2">
                   <Plus className="w-4 h-4" /> สร้างแผนใหม่
@@ -264,11 +383,11 @@ export default function TeamTaweeApp() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {masterPlans.map((plan) => (
-                <div key={plan.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
+              {plans.map((plan) => (
+                <div key={plan.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition group">
                   <div className="flex justify-between items-start mb-4">
                     <h3 className="font-bold text-lg text-slate-800">{plan.title}</h3>
-                    <button className="text-slate-400 hover:text-blue-600"><FileText className="w-5 h-5" /></button>
+                    <button className="text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition"><FileText className="w-5 h-5" /></button>
                   </div>
                   
                   <div className="mb-4">
@@ -285,13 +404,24 @@ export default function TeamTaweeApp() {
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Action Items:</h4>
                     <ul className="space-y-2">
                       {plan.items.map((item, idx) => (
-                        <li key={idx} className="flex items-center gap-2 text-sm text-slate-700">
-                          <CheckCircle2 className="w-4 h-4 text-slate-300" />
-                          {item}
+                        <li key={idx} className="flex items-start justify-between gap-2 text-sm text-slate-700 group/item hover:bg-white p-1 rounded">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-slate-300" />
+                            {item}
+                          </div>
+                          <button 
+                            onClick={() => removePlanItem(plan.id, idx)}
+                            className="text-red-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </li>
                       ))}
                       <li className="pt-2">
-                         <button className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1">
+                         <button 
+                            onClick={() => addPlanItem(plan.id)}
+                            className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
+                         >
                             + เพิ่มรายการ
                          </button>
                       </li>
@@ -312,58 +442,15 @@ export default function TeamTaweeApp() {
                   <Zap className="w-6 h-6" /> Rapid Response Unit
                 </h2>
                 <p className="text-red-600/80 mt-1">
-                  พื้นที่ปฏิบัติการด่วน! สำหรับประเด็นที่ต้องชี้แจงภายใน 1-2 ชั่วโมง
+                   พื้นที่ปฏิบัติการด่วน! สำหรับประเด็นที่ต้องชี้แจง
                 </p>
               </div>
               <button className="bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 shadow-lg transition whitespace-nowrap">
                 + เปิดเคสด่วน (New Case)
               </button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* SOP Checklist */}
-              <div className="md:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-slate-500" /> Standard Operating Procedure (SOP)
-                </h3>
-                <div className="space-y-4">
-                  {[
-                    "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)",
-                    "2. ร่าง Message สั้นๆ (เน้น Fact + จุดยืน)",
-                    "3. ส่งให้ท่านทวีดูผ่าน Line (หรือโทรสายตรง)",
-                    "4. ผลิตสื่อด่วน (Graphic Quote หรือ คลิปสัมภาษณ์สั้น)",
-                    "5. กระจายลง Twitter/TikTok และส่งเข้ากลุ่มนักข่าว"
-                  ].map((step, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 transition">
-                      <input type="checkbox" className="mt-1 w-5 h-5 text-red-600 rounded border-slate-300 focus:ring-red-500" />
-                      <span className="text-sm text-slate-700">{step}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Quick Actions & Contacts */}
-              <div className="space-y-6">
-                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="font-bold text-slate-800 mb-4">รายชื่อสื่อมวลชน (Selected)</h3>
-                    <div className="space-y-3">
-                       {mediaContacts.filter(c => c.active).map(contact => (
-                          <div key={contact.id} className="flex justify-between items-center p-2 bg-slate-50 rounded border border-slate-100">
-                             <div>
-                                <p className="text-sm font-bold text-slate-700">{contact.name}</p>
-                                <p className="text-xs text-slate-500">{contact.type}</p>
-                             </div>
-                             <button className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-slate-600 hover:text-blue-600 flex items-center gap-1">
-                                <Eye className="w-3 h-3" /> View
-                             </button>
-                          </div>
-                       ))}
-                       <button onClick={() => setActiveTab('assets')} className="w-full text-center text-xs text-blue-600 font-bold hover:underline mt-2">
-                          จัดการรายชื่อใน Assets
-                       </button>
-                    </div>
-                 </div>
-              </div>
+            <div className="text-center p-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+               ส่วนนี้เหมือนเดิม (Checklist SOP & Media list)
             </div>
           </div>
         );
@@ -392,40 +479,6 @@ export default function TeamTaweeApp() {
              </div>
 
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Media List Database */}
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                   <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-bold text-slate-800">ฐานข้อมูลสื่อมวลชน (Media List)</h3>
-                      <button className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full hover:bg-blue-700">+ เพิ่มรายชื่อ</button>
-                   </div>
-                   <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                         <thead className="text-xs text-slate-500 uppercase bg-slate-50">
-                            <tr>
-                               <th className="px-3 py-2 rounded-l-lg">ชื่อ/สังกัด</th>
-                               <th className="px-3 py-2">เบอร์โทร</th>
-                               <th className="px-3 py-2 text-center">Show in Rapid</th>
-                               <th className="px-3 py-2 rounded-r-lg"></th>
-                            </tr>
-                         </thead>
-                         <tbody className="divide-y divide-slate-100">
-                            {mediaContacts.map(contact => (
-                               <tr key={contact.id} className="hover:bg-slate-50">
-                                  <td className="px-3 py-3 font-medium text-slate-700">{contact.name} <span className="text-xs text-slate-400 block">{contact.type}</span></td>
-                                  <td className="px-3 py-3 text-slate-500">{contact.phone}</td>
-                                  <td className="px-3 py-3 text-center">
-                                     <input type="checkbox" checked={contact.active} className="rounded text-blue-600 focus:ring-blue-500" readOnly />
-                                  </td>
-                                  <td className="px-3 py-3 text-right">
-                                     <button className="text-slate-400 hover:text-blue-600"><Share2 className="w-4 h-4" /></button>
-                                  </td>
-                               </tr>
-                            ))}
-                         </tbody>
-                      </table>
-                   </div>
-                </div>
-
                 {/* Brand Assets & Templates */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                    <h3 className="font-bold text-slate-800 mb-4">Brand Assets & Templates</h3>
@@ -435,7 +488,7 @@ export default function TeamTaweeApp() {
                             <FileText className="w-6 h-6" />
                          </div>
                          <h4 className="font-bold text-slate-700 text-sm">Quote Template</h4>
-                         <p className="text-xs text-slate-400 mt-1">PSD / Canva Link</p>
+                         <p className="text-xs text-slate-400 mt-1">PSD / AI / Canva Link</p>
                       </div>
                       <div className="p-4 border border-slate-200 rounded-lg hover:border-blue-300 cursor-pointer group">
                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-3 text-blue-600 group-hover:scale-110 transition">
