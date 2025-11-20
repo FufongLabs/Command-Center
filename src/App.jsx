@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Megaphone, 
@@ -17,11 +17,15 @@ import {
   FileText,
   Share2,
   Plus,
+  Minus,
   Link as LinkIcon,
   Trash2,
+  Edit2,
   ChevronDown,
   ChevronUp,
-  Filter
+  Filter,
+  PieChart,
+  BarChart3
 } from 'lucide-react';
 
 // --- MOCK DATA ---
@@ -46,7 +50,6 @@ const initialTasks = {
   ]
 };
 
-// ข้อมูลจำลอง Distribution
 const initialDistribution = [
   { id: 1, name: "Facebook Page (Official)", count: 5, type: "Own Media" },
   { id: 2, name: "TikTok Team Tawee", count: 3, type: "Own Media" },
@@ -55,13 +58,11 @@ const initialDistribution = [
   { id: 5, name: "เพจ FC คนรักทวี", count: 12, type: "FC" },
 ];
 
-// ข้อมูลจำลอง Links ล่าสุด
 const recentLinks = [
   { id: 1, title: "ข่าวลงพื้นที่ - Khaosod", url: "https://khaosod.co.th/..." },
   { id: 2, title: "คลิป TikTok ไวรัล", url: "https://tiktok.com/..." },
 ];
 
-// ข้อมูลสื่อมวลชน (Assets)
 const mediaContacts = [
   { id: 1, name: "คุณส้ม (Ch 3)", type: "TV", phone: "081-xxx-xxxx", active: true },
   { id: 2, name: "คุณหนุ่ม (News Portal)", type: "Online", phone: "-", active: true },
@@ -85,27 +86,61 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+// Simple SVG Pie Chart Component
+const SimplePieChart = ({ done, total }) => {
+  const radius = 16;
+  const circumference = 2 * Math.PI * radius;
+  const percentage = total === 0 ? 0 : (done / total) * 100;
+  const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
+
+  return (
+    <div className="relative w-32 h-32 flex items-center justify-center">
+      <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 36 36">
+        <path
+          className="text-slate-100"
+          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+        />
+        <path
+          className="text-blue-600 transition-all duration-1000 ease-out"
+          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeDasharray={strokeDasharray}
+        />
+      </svg>
+      <div className="absolute text-center">
+        <span className="text-2xl font-bold text-slate-800">{Math.round(percentage)}%</span>
+        <span className="block text-[10px] text-slate-400">COMPLETED</span>
+      </div>
+    </div>
+  );
+};
+
 export default function TeamTaweeApp() {
+  // เปลี่ยน Title Browser Tab
+  useEffect(() => {
+    document.title = "TEAM TAWEE | Stand Together";
+  }, []);
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState('week3-nov');
   
-  // State สำหรับหน้า Strategy
   const [tasks, setTasks] = useState(initialTasks);
   const [hideDone, setHideDone] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-
-  // State สำหรับหน้า Dashboard
   const [distributionStats, setDistributionStats] = useState(initialDistribution);
 
-  // State สำหรับ Master Plan
   const [plans, setPlans] = useState([
     { id: 1, title: "Roadmap สู่การเลือกตั้ง (Election)", progress: 60, items: ["เปิดตัวผู้สมัครครบทุกเขต", "Grand Opening นโยบายหลัก", "Caravan หาเสียงทั่วประเทศ"] },
-    { id: 2, title: "แผนปั้น 'ผู้เชี่ยวชาญ' (Expert Plan)", progress: 30, items: ["รายการ YouTube Weekly", "หนังสือ Pocket book ความยุติธรรม"] },
+    { id: 2, title: "แผนนำเสนอ 'ผู้เชี่ยวชาญ' (Expert Plan)", progress: 30, items: ["รายการ YouTube Weekly", "หนังสือ Pocket book ความยุติธรรม"] },
     { id: 3, title: "แผนลงพื้นที่เชิงรุก (Solver Plan)", progress: 80, items: ["คาราวานแก้หนี้ 4 ภาค", "ตั้งศูนย์รับเรื่องร้องเรียนออนไลน์"] }
   ]);
 
-  // --- ส่วนที่ลืมใส่ไปคราวที่แล้ว (เพิ่มกลับมาแล้วครับ) ---
   const navItems = [
     { id: 'dashboard', label: 'ภาพรวม (Dashboard)', icon: LayoutDashboard },
     { id: 'strategy', label: 'กระดาน 4 แกน (Strategy)', icon: Megaphone },
@@ -114,12 +149,9 @@ export default function TeamTaweeApp() {
     { id: 'assets', label: 'คลังอาวุธ (Assets)', icon: Database },
   ];
 
-  // ฟังก์ชันจัดการ Distribution
-  const incrementDist = (id) => {
-    setDistributionStats(prev => prev.map(item => item.id === id ? { ...item, count: item.count + 1 } : item));
-  };
+  const incrementDist = (id) => setDistributionStats(prev => prev.map(item => item.id === id ? { ...item, count: item.count + 1 } : item));
+  const decrementDist = (id) => setDistributionStats(prev => prev.map(item => item.id === id ? { ...item, count: Math.max(0, item.count - 1) } : item));
 
-  // ฟังก์ชันจัดการ Task (Save Edit)
   const saveTask = (columnKey, updatedTask) => {
     setTasks(prev => ({
       ...prev,
@@ -128,24 +160,36 @@ export default function TeamTaweeApp() {
     setEditingTask(null);
   };
 
-  // ฟังก์ชันจัดการ Master Plan Items
   const addPlanItem = (planId) => {
     const text = prompt("ระบุรายการใหม่:");
-    if (text) {
-      setPlans(prev => prev.map(p => p.id === planId ? { ...p, items: [...p.items, text] } : p));
-    }
-  };
-  const removePlanItem = (planId, itemIndex) => {
-    setPlans(prev => prev.map(p => p.id === planId ? { ...p, items: p.items.filter((_, idx) => idx !== itemIndex) } : p));
+    if (text) setPlans(prev => prev.map(p => p.id === planId ? { ...p, items: [...p.items, text] } : p));
   };
 
-  // --- RENDER CONTENT ---
-  
+  const editPlanItem = (planId, itemIndex) => {
+    const oldText = plans.find(p => p.id === planId).items[itemIndex];
+    const newText = prompt("แก้ไขรายการ:", oldText);
+    if (newText) {
+      setPlans(prev => prev.map(p => p.id === planId ? {
+        ...p,
+        items: p.items.map((item, idx) => idx === itemIndex ? newText : item)
+      } : p));
+    }
+  };
+
+  const removePlanItem = (planId, itemIndex) => {
+    if(window.confirm("ต้องการลบรายการนี้ใช่หรือไม่?")) {
+        setPlans(prev => prev.map(p => p.id === planId ? { ...p, items: p.items.filter((_, idx) => idx !== itemIndex) } : p));
+    }
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        const taskStats = { done: 0, pending: 0 };
-        Object.values(tasks).flat().forEach(t => t.status === 'Done' ? taskStats.done++ : taskStats.pending++);
+        const taskStats = { done: 0, pending: 0, total: 0 };
+        Object.values(tasks).flat().forEach(t => {
+            t.status === 'Done' ? taskStats.done++ : taskStats.pending++;
+            taskStats.total++;
+        });
 
         return (
           <div className="space-y-6 animate-fadeIn">
@@ -175,76 +219,103 @@ export default function TeamTaweeApp() {
               </div>
             </div>
 
+            {/* Top Section: Stats & Graphs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Card 1: ความคืบหน้า */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <div className="flex justify-between items-start">
-                   <div>
-                    <p className="text-slate-500 text-xs font-bold uppercase mb-1">Overview</p>
-                    <h3 className="text-xl font-bold text-slate-800">งานทั้งหมด</h3>
-                   </div>
-                   <Activity className="text-slate-300" />
-                </div>
-                <div className="mt-4 flex items-center gap-4">
-                  <div className="text-center">
-                    <span className="block text-2xl font-bold text-green-600">{taskStats.done}</span>
-                    <span className="text-xs text-slate-500">เสร็จแล้ว</span>
-                  </div>
-                  <div className="h-8 w-px bg-slate-200"></div>
-                  <div className="text-center">
-                    <span className="block text-2xl font-bold text-orange-500">{taskStats.pending}</span>
-                    <span className="text-xs text-slate-500">คงค้าง</span>
-                  </div>
-                </div>
+              {/* Graph Card */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
+                 <p className="text-slate-500 text-xs font-bold uppercase mb-4 w-full text-left">Work Progress</p>
+                 <SimplePieChart done={taskStats.done} total={taskStats.total} />
+                 <div className="flex gap-4 mt-4 text-xs font-bold">
+                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-600"></span> เสร็จ {taskStats.done}</div>
+                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-200"></span> ค้าง {taskStats.pending}</div>
+                 </div>
               </div>
 
-              {/* Card 2: Distribution Hub */}
-              <div className="md:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              {/* Strategy Preview */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm col-span-1 md:col-span-2 overflow-hidden">
+                 <div className="flex justify-between items-center mb-3">
+                    <p className="text-slate-500 text-xs font-bold uppercase">Strategy Board Preview</p>
+                    <button onClick={() => setActiveTab('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button>
+                 </div>
+                 <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(tasks).slice(0, 4).map(([key, taskList]) => {
+                        const topTask = taskList[0];
+                        if(!topTask) return null;
+                        return (
+                            <div key={key} className="bg-slate-50 p-3 rounded border border-slate-100">
+                                <div className="flex justify-between mb-1">
+                                    <span className="text-[10px] font-bold uppercase text-slate-400">{key}</span>
+                                    <StatusBadge status={topTask.status} />
+                                </div>
+                                <p className="text-sm font-bold text-slate-700 truncate">{topTask.title}</p>
+                                <p className="text-[10px] text-slate-500">{topTask.role}</p>
+                            </div>
+                        )
+                    })}
+                 </div>
+              </div>
+            </div>
+
+            {/* Middle Section: Master Plan Preview */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                   <div className="flex items-center gap-2">
+                      <Map className="w-5 h-5 text-slate-400" />
+                      <h3 className="font-bold text-slate-800">Master Plan Status</h3>
+                   </div>
+                   <button onClick={() => setActiveTab('masterplan')} className="text-xs text-blue-600 font-bold hover:underline">ดูรายละเอียด →</button>
+                </div>
+                <div className="space-y-4">
+                    {plans.map(plan => (
+                        <div key={plan.id}>
+                            <div className="flex justify-between text-sm mb-1">
+                                <span className="font-bold text-slate-700">{plan.title}</span>
+                                <span className="text-slate-500">{plan.progress}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2">
+                                <div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${plan.progress}%` }}></div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Bottom Section: Distribution Hub */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                    <div>
                       <p className="text-slate-500 text-xs font-bold uppercase mb-1">Distribution Hub</p>
-                      <h3 className="text-xl font-bold text-slate-800">เผยแพร่แล้ว (Published)</h3>
+                      <h3 className="text-xl font-bold text-slate-800">เผยแพร่แล้ว (Published Counter)</h3>
                    </div>
                    <button className="text-xs text-blue-600 font-bold border border-blue-200 px-2 py-1 rounded hover:bg-blue-50">
                       + เพิ่มช่องทาง
                    </button>
                 </div>
                 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                   {distributionStats.map(item => (
                     <div key={item.id} className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center text-center relative group">
                        <span className="text-[10px] text-slate-400 mb-1">{item.type}</span>
                        <h4 className="font-bold text-slate-700 text-sm leading-tight h-8 flex items-center justify-center">{item.name}</h4>
-                       <span className="text-2xl font-bold text-blue-600 my-1">{item.count}</span>
+                       <span className="text-3xl font-black text-blue-600 my-2">{item.count}</span>
                        
-                       <button 
-                          onClick={() => incrementDist(item.id)}
-                          className="absolute -top-2 -right-2 bg-white shadow border border-slate-200 rounded-full p-1 opacity-0 group-hover:opacity-100 hover:text-blue-600 transition"
-                       >
-                          <Plus className="w-3 h-3" />
-                       </button>
+                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                           <button 
+                              onClick={() => decrementDist(item.id)}
+                              className="bg-white shadow border border-slate-200 rounded-full p-1 hover:text-red-600"
+                           >
+                              <Minus className="w-3 h-3" />
+                           </button>
+                           <button 
+                              onClick={() => incrementDist(item.id)}
+                              className="bg-white shadow border border-slate-200 rounded-full p-1 hover:text-blue-600"
+                           >
+                              <Plus className="w-3 h-3" />
+                           </button>
+                       </div>
                     </div>
                   ))}
                 </div>
-
-                {/* Recent Links List */}
-                <div className="bg-blue-50/50 rounded-lg p-4">
-                   <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
-                      <LinkIcon className="w-3 h-3" /> Recent Links (รวมลิงก์ผลงาน)
-                   </h4>
-                   <div className="space-y-2">
-                      {recentLinks.map(link => (
-                         <a key={link.id} href={link.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-blue-700 hover:underline truncate block">
-                            <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                            {link.title}
-                         </a>
-                      ))}
-                      <button className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 mt-1">
-                         + แปะลิงก์ใหม่
-                      </button>
-                   </div>
-                </div>
-              </div>
             </div>
           </div>
         );
@@ -366,11 +437,6 @@ export default function TeamTaweeApp() {
                               className="w-full border border-slate-300 rounded p-2 text-sm"
                               placeholder="https://..."
                            />
-                           {editingTask.link && (
-                              <a href={editingTask.link} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
-                                 ทดสอบเปิดลิงก์
-                              </a>
-                           )}
                         </div>
                      </div>
 
@@ -419,17 +485,25 @@ export default function TeamTaweeApp() {
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Action Items:</h4>
                     <ul className="space-y-2">
                       {plan.items.map((item, idx) => (
-                        <li key={idx} className="flex items-start justify-between gap-2 text-sm text-slate-700 group/item hover:bg-white p-1 rounded">
+                        <li key={idx} className="flex items-start justify-between gap-2 text-sm text-slate-700 group/item hover:bg-white p-1 rounded transition">
                           <div className="flex items-center gap-2">
                             <CheckCircle2 className="w-4 h-4 text-slate-300" />
                             {item}
                           </div>
-                          <button 
-                            onClick={() => removePlanItem(plan.id, idx)}
-                            className="text-red-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition">
+                              <button 
+                                onClick={() => editPlanItem(plan.id, idx)}
+                                className="text-slate-400 hover:text-blue-600"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                              <button 
+                                onClick={() => removePlanItem(plan.id, idx)}
+                                className="text-slate-400 hover:text-red-500"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                          </div>
                         </li>
                       ))}
                       <li className="pt-2">
@@ -516,7 +590,6 @@ export default function TeamTaweeApp() {
       case 'assets':
         return (
           <div className="space-y-8">
-             {/* Google Drive Link */}
              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-100 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div>
                    <h3 className="text-lg font-bold text-blue-900 flex items-center gap-2">
@@ -537,7 +610,6 @@ export default function TeamTaweeApp() {
              </div>
 
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Media List Database */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                    <div className="flex justify-between items-center mb-4">
                       <h3 className="font-bold text-slate-800">ฐานข้อมูลสื่อมวลชน (Media List)</h3>
@@ -571,7 +643,6 @@ export default function TeamTaweeApp() {
                    </div>
                 </div>
 
-                {/* Brand Assets & Templates */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                    <h3 className="font-bold text-slate-800 mb-4">Brand Assets & Templates</h3>
                    <div className="grid grid-cols-2 gap-4">
@@ -602,7 +673,6 @@ export default function TeamTaweeApp() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
-      {/* Sidebar */}
       <aside className={`bg-slate-900 text-white w-full md:w-64 flex-shrink-0 transition-all duration-300 fixed md:sticky top-0 z-30 h-screen ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-6 border-b border-slate-700 flex justify-between items-center">
           <div>
@@ -643,9 +713,7 @@ export default function TeamTaweeApp() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 md:ml-0 min-h-screen overflow-y-auto w-full">
-        {/* Mobile Header */}
         <div className="md:hidden bg-white p-4 flex justify-between items-center shadow-sm sticky top-0 z-20 border-b border-slate-100">
           <div>
             <h2 className="font-black text-slate-900">TEAM TAWEE</h2>
@@ -657,7 +725,6 @@ export default function TeamTaweeApp() {
         </div>
 
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
-           {/* Page Header */}
            <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-end gap-4">
               <div>
                  <h2 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
@@ -674,8 +741,6 @@ export default function TeamTaweeApp() {
                  </div>
               </div>
            </div>
-
-           {/* Dynamic Content */}
            {renderContent()}
         </div>
       </main>
