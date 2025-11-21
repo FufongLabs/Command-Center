@@ -11,31 +11,13 @@ import {
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, Eye, FileText, Share2, Plus, 
-  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, Search, Shield, FileClock, Check
+  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag
 } from 'lucide-react';
 
-// --- GLOBAL CONSTANTS (UPDATED) ---
+// --- GLOBAL CONSTANTS ---
 const PRESET_TAGS = ["Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"];
-
-// 1. Asset Types
-const ASSET_TYPES = [
-  "Own media", 
-  "Partner", 
-  "NEWS Paper", 
-  "NEWS Website", 
-  "Fan Club (own)"
-];
-
-// 2. Task Statuses
-const TASK_STATUSES = [
-  "To Do", 
-  "In Progress", 
-  "In Review", 
-  "Done", 
-  "Idea", 
-  "Waiting list", 
-  "Canceled"
-];
+const ASSET_TYPES = ["Own media", "Partner", "NEWS Paper", "NEWS Website", "Fan Club (own)"];
+const TASK_STATUSES = ["To Do", "In Progress", "In Review", "Done", "Idea", "Waiting list", "Canceled"];
 
 const DEFAULT_SOP = [
   { text: "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)", done: false },
@@ -182,11 +164,10 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                       onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
                       className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-700 transition-all placeholder:text-slate-300"
                       placeholder={field.placeholder || ''}
-                      list={field.type === 'datalist' ? `list-${field.key}` : undefined}
                    />
                 )}
-                {field.type === 'datalist' && <datalist id={`list-${field.key}`}>{field.options.map(opt => <option key={opt} value={opt} />)}</datalist>}
-                {field.key === 'tag' && <div className="mt-3 flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100"><p className="text-[10px] text-slate-400 w-full mb-1">เลือก Tag ที่ใช้บ่อย:</p>{PRESET_TAGS.map(tag => <button key={tag} onClick={() => setFormData({...formData, tag: tag})} className={`text-[10px] px-2.5 py-1.5 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}>{tag}</button>)}</div>}
+                {/* Simplified Tag Input (Fixes video issue) */}
+                {field.key === 'tag' && <div className="mt-3 flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100"><p className="text-[10px] text-slate-400 w-full mb-1">เลือก Tag:</p>{PRESET_TAGS.map(tag => <button key={tag} onClick={() => setFormData({...formData, tag: tag})} className={`text-[10px] px-2.5 py-1.5 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}>{tag}</button>)}</div>}
              </div>
            ))}
         </div>
@@ -206,7 +187,6 @@ const PageHeader = ({ title, subtitle, action }) => (
   </div>
 );
 
-// --- UPDATED STATUS BADGE (New Colors) ---
 const StatusBadge = ({ status }) => {
   const styles = {
     "To Do": "bg-slate-100 text-slate-600 border-slate-200",
@@ -220,39 +200,29 @@ const StatusBadge = ({ status }) => {
   return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
-// --- UPDATED GRAPH LOGIC (7 STATUSES) ---
 const StatusDonutChart = ({ stats }) => {
   const total = stats.total || 1; 
-  // 1. Done = เขียว
   const donePercent = (stats.done / total) * 100;
-  // 2. Doing (In Progress + In Review) = ฟ้า
-  const doingPercent = (stats.doing / total) * 100;
-  // 3. Waiting (To Do + Idea + Waiting list) = เทา (ที่เหลือ)
-  
+  const progressPercent = (stats.progress / total) * 100;
   const circumference = 2 * Math.PI * 40;
 
   return (
     <div className="relative w-48 h-48 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" /> {/* Base Gray (Waiting) */}
-        
-        {/* Doing Layer (Blue) - starts after Done */}
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" 
-          strokeDasharray={`${(donePercent + doingPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
-        
-        {/* Done Layer (Green) - starts at 0 */}
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" 
-          strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-300" strokeWidth="12" strokeDasharray={`${circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
       <div className="absolute text-center">
         <span className="text-4xl font-black text-slate-800">{stats.total}</span>
-        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">ACTIVE TASKS</span>
+        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TASKS</span>
       </div>
     </div>
   );
 };
 
-// --- LOGIN & PROFILE ---
+// --- LOGIN SCREEN ---
 const LoginScreen = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -350,7 +320,7 @@ export default function TeamTaweeApp() {
   const [isDistOpen, setIsDistOpen] = useState(false); 
   const [isSopOpen, setIsSopOpen] = useState(false); 
 
-  // BACK BUTTON FIX & HISTORY
+  // BACK BUTTON FIX
   useEffect(() => {
     const handlePopState = (event) => { if (event.state?.tab) setActiveTab(event.state.tab); else setActiveTab('dashboard'); };
     window.addEventListener('popstate', handlePopState);
@@ -381,15 +351,20 @@ export default function TeamTaweeApp() {
     const unsubPlans = onSnapshot(collection(db, "plans"), (s) => setPlans(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubMedia = onSnapshot(collection(db, "media"), (s) => setMedia(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubChannels = onSnapshot(collection(db, "channels"), (s) => setChannels(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    
-    let unsubUsers = () => {}, unsubLogs = () => {};
-    if (userProfile?.role === 'Admin') {
-        unsubUsers = onSnapshot(collection(db, "user_profiles"), (s) => setUsersList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-        unsubLogs = onSnapshot(query(collection(db, "logs"), orderBy("createdAt", "desc")), (s) => setActivityLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    // Fix: Try-catch for missing collections
+    try {
+      const unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+      let unsubUsers = () => {}, unsubLogs = () => {};
+      if (userProfile?.role === 'Admin') {
+          unsubUsers = onSnapshot(collection(db, "user_profiles"), (s) => setUsersList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+          unsubLogs = onSnapshot(query(collection(db, "logs"), orderBy("createdAt", "desc")), (s) => setActivityLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+      }
+      setIsDataLoading(false);
+      return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); unsubUsers(); unsubLogs(); };
+    } catch(e) {
+      setIsDataLoading(false);
+      return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); };
     }
-    setIsDataLoading(false);
-    return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); unsubUsers(); unsubLogs(); };
   }, [currentUser, userProfile]);
 
   const logActivity = async (action, details) => { try { await addDoc(collection(db, "logs"), { action, details, user: currentUser.displayName || currentUser.email, createdAt: serverTimestamp() }); } catch(e) {} };
@@ -426,7 +401,6 @@ export default function TeamTaweeApp() {
   const updateUserStatus = (uid, status, role) => { updateDoc(doc(db, "user_profiles", uid), { status, role }); logActivity("Admin Update", `${uid} -> ${status}`); };
 
   // Render Data
-  // *** Updated Task Status Logic for Graph ***
   const groupedTasks = { solver: tasks.filter(t => t.columnKey === 'solver'), principles: tasks.filter(t => t.columnKey === 'principles'), defender: tasks.filter(t => t.columnKey === 'defender'), expert: tasks.filter(t => t.columnKey === 'expert'), backoffice: tasks.filter(t => t.columnKey === 'backoffice') };
   const urgentTasks = tasks.filter(t => t.tag === 'Urgent');
   const allTags = ['All', ...new Set([...PRESET_TAGS, ...tasks.map(t => t.tag)].filter(Boolean))];
@@ -449,18 +423,13 @@ export default function TeamTaweeApp() {
 
     switch (activeTab) {
       case 'dashboard':
-        // GRAPH LOGIC (Fixed)
-        const taskStats = { done: 0, doing: 0, waiting: 0, total: 0 };
+        const taskStats = { done: 0, pending: 0, total: 0, progress: 0, todo: 0 };
         tasks.forEach(t => { 
-          // Count only non-canceled
-          if(t.status!=='Canceled') {
-             taskStats.total++;
-             if(t.status==='Done') taskStats.done++;
-             else if(t.status==='In Progress' || t.status==='In Review') taskStats.doing++;
-             else taskStats.waiting++;
-          }
+          if(t.status==='Done') taskStats.done++; 
+          else if(t.status==='In Progress' || t.status==='In Review') { taskStats.progress++; taskStats.pending++; } 
+          else if(t.status!=='Canceled') { taskStats.todo++; taskStats.pending++; }
+          if(t.status!=='Canceled') taskStats.total++; 
         });
-
         return (
           <div className="space-y-6 animate-fadeIn">
              <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" action={
@@ -477,8 +446,8 @@ export default function TeamTaweeApp() {
                     <StatusDonutChart stats={taskStats} />
                     <div className="flex justify-center gap-6 mt-6 text-xs font-bold w-full">
                         <div className="text-center"><div className="w-3 h-3 rounded-full bg-emerald-500 mx-auto mb-1"></div> เสร็จ {taskStats.done}</div>
-                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-blue-500 mx-auto mb-1"></div> ทำ {taskStats.doing}</div>
-                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1"></div> รอ {taskStats.waiting}</div>
+                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-blue-500 mx-auto mb-1"></div> ทำ {taskStats.progress}</div>
+                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1"></div> รอ {taskStats.todo}</div>
                     </div>
                 </div>
                 {/* Middle: Strategy Preview (Promoted) */}
