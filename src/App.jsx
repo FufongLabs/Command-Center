@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from './firebaseConfig'; 
 import { 
   collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, 
-  query, orderBy, writeBatch, setDoc, getDoc, serverTimestamp, where 
+  query, orderBy, writeBatch, setDoc, getDoc, serverTimestamp 
 } from 'firebase/firestore';
 import { 
   onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, updateProfile 
@@ -11,11 +11,23 @@ import {
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, Eye, FileText, Share2, Plus, 
-  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, Search, Shield, FileClock, Check
+  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, MoreHorizontal
 } from 'lucide-react';
 
-// --- CONSTANTS ---
-const PRESET_TAGS = ["Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"];
+// --- GLOBAL CONSTANTS ---
+const PRESET_TAGS = [
+  "Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"
+];
+
+// เพิ่มตัวนี้กลับมาให้แล้วครับ (สาเหตุที่หน้าขาว)
+const DEFAULT_SOP = [
+  { text: "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)", done: false },
+  { text: "2. ร่าง Message สั้นๆ (เน้น Fact + จุดยืน)", done: false },
+  { text: "3. ขอ Approved ด่วน (Line/โทร)", done: false },
+  { text: "4. ผลิตสื่อด่วน (Graphic Quote หรือ คลิปสัมภาษณ์สั้น)", done: false },
+  { text: "5. กระจายลง Social Media & ส่งกลุ่มนักข่าว", done: false }
+];
+
 const SOP_GUIDE = [
   "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)",
   "2. ร่าง Message สั้นๆ (เน้น Fact + จุดยืน)",
@@ -23,6 +35,7 @@ const SOP_GUIDE = [
   "4. ผลิตสื่อด่วน (Graphic Quote หรือ คลิปสัมภาษณ์สั้น)",
   "5. กระจายลง Social Media & ส่งกลุ่มนักข่าว"
 ];
+
 const COL_DESCRIPTIONS = {
     solver: "งานรูทีน, ลงพื้นที่, แก้ปัญหาชาวบ้าน",
     principles: "Quote คำคม, อุดมการณ์, Viral, Brand",
@@ -34,76 +47,34 @@ const COL_DESCRIPTIONS = {
 const formatDate = (isoString) => {
   if (!isoString) return "-";
   try {
-    return new Date(isoString).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(isoString).toLocaleString('th-TH', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
   } catch (e) { return "-"; }
 };
 
 // --- COMPONENTS ---
 
-const LoadingOverlay = ({ isOpen, message = "กำลังทำงาน..." }) => {
+const LoadingOverlay = ({ isOpen, message = "กำลังบันทึกข้อมูล..." }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-[100] animate-fadeIn">
-      <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-3" />
-      <p className="text-slate-600 font-bold animate-pulse">{message}</p>
-    </div>
-  );
-};
-
-const SearchModal = ({ isOpen, onClose, data, onNavigate }) => {
-  const [query, setQuery] = useState("");
-  if (!isOpen) return null;
-
-  const results = query.length < 2 ? [] : [
-    ...data.tasks.filter(t => t.title.toLowerCase().includes(query.toLowerCase())).map(t => ({ ...t, type: 'Task', label: t.title, sub: t.status })),
-    ...data.media.filter(m => m.name.toLowerCase().includes(query.toLowerCase())).map(m => ({ ...m, type: 'Media', label: m.name, sub: m.phone })),
-    ...data.channels.filter(c => c.name.toLowerCase().includes(query.toLowerCase())).map(c => ({ ...c, type: 'Channel', label: c.name, sub: c.url })),
-  ];
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-50 p-4 pt-20 animate-fadeIn" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-           <Search className="w-6 h-6 text-slate-400" />
-           <input 
-              autoFocus
-              className="flex-1 text-lg outline-none text-slate-700 placeholder:text-slate-300"
-              placeholder="ค้นหางาน, เบอร์โทร, หรือช่องทาง..."
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-           />
-           <button onClick={onClose} className="p-1 bg-slate-100 rounded-md text-xs text-slate-500">ESC</button>
-        </div>
-        <div className="max-h-[60vh] overflow-y-auto bg-slate-50/50">
-           {results.length > 0 ? (
-               <div className="p-2">
-                   {results.map((res, idx) => (
-                       <div key={idx} className="p-3 hover:bg-blue-50 rounded-lg cursor-pointer flex items-center justify-between group transition" onClick={() => {
-                           if(res.type === 'Task') onNavigate('strategy');
-                           if(res.type === 'Media' || res.type === 'Channel') onNavigate('assets');
-                           onClose();
-                       }}>
-                           <div>
-                               <p className="font-bold text-slate-800 text-sm">{res.label}</p>
-                               <p className="text-xs text-slate-500">{res.type} • {res.sub}</p>
-                           </div>
-                           <span className="text-xs text-blue-600 opacity-0 group-hover:opacity-100">ไปที่หน้า →</span>
-                       </div>
-                   ))}
-               </div>
-           ) : query.length > 0 ? (
-               <div className="p-10 text-center text-slate-400">ไม่พบข้อมูล "{query}"</div>
-           ) : (
-               <div className="p-10 text-center text-slate-400 text-sm">พิมพ์คำค้นหาเพื่อเริ่มใช้งาน...</div>
-           )}
+      <div className="relative">
+        <div className="absolute inset-0 bg-blue-200 rounded-full animate-ping opacity-75"></div>
+        <div className="relative bg-white p-4 rounded-full shadow-xl">
+            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
         </div>
       </div>
+      <p className="text-slate-600 font-bold mt-4 animate-pulse">{message}</p>
     </div>
   );
 };
 
+// Form Modal (Updated: Quick Tags Logic)
 const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บันทึก" }) => {
   const [formData, setFormData] = useState({});
+
   useEffect(() => {
     if (isOpen) {
       const initialData = {};
@@ -115,29 +86,54 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100 relative">
         <button onClick={onClose} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full transition"><X className="w-5 h-5 text-slate-400" /></button>
         <h3 className="text-xl font-bold text-slate-800 mb-6 pr-8">{title}</h3>
-        <div className="space-y-5">
+        <div className="space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar pr-1">
            {fields.map((field) => (
              <div key={field.key}>
                 <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase flex items-center gap-2">
                     {field.label}
                     {field.key === 'tag' && <Tag className="w-3 h-3 text-blue-500" />}
                 </label>
+                
                 {field.type === 'select' ? (
                    <div className="relative">
-                       <select value={formData[field.key]} onChange={(e) => setFormData({...formData, [field.key]: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-slate-50 focus:bg-white focus:border-blue-500 outline-none appearance-none font-medium text-slate-700 transition-all">
+                       <select 
+                          value={formData[field.key]} 
+                          onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                          className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-slate-50 focus:bg-white focus:border-blue-500 outline-none appearance-none font-medium text-slate-700 transition-all"
+                       >
                           {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                        </select>
                        <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none"/>
                    </div>
                 ) : (
-                   <input type={field.type || 'text'} value={formData[field.key]} onChange={(e) => setFormData({...formData, [field.key]: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-700 transition-all placeholder:text-slate-300" placeholder={field.placeholder || ''} list={field.type === 'datalist' ? `list-${field.key}` : undefined} />
+                   <input 
+                      type={field.type || 'text'}
+                      value={formData[field.key]}
+                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                      className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-700 transition-all placeholder:text-slate-300"
+                      placeholder={field.placeholder || ''}
+                   />
                 )}
-                {field.type === 'datalist' && <datalist id={`list-${field.key}`}>{field.options.map(opt => <option key={opt} value={opt} />)}</datalist>}
-                {field.key === 'tag' && <div className="mt-3 flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100"><p className="text-[10px] text-slate-400 w-full mb-1">เลือก Tag ที่ใช้บ่อย:</p>{PRESET_TAGS.map(tag => <button key={tag} onClick={() => setFormData({...formData, tag: tag})} className={`text-[10px] px-2.5 py-1.5 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}>{tag}</button>)}</div>}
+
+                {/* Quick Tags Buttons (Click to Fill) */}
+                {field.key === 'tag' && (
+                    <div className="mt-3 flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <p className="text-[10px] text-slate-400 w-full mb-1">เลือก Tag ที่ใช้บ่อย (คลิกเพื่อใส่):</p>
+                        {PRESET_TAGS.map(tag => (
+                            <button 
+                                key={tag}
+                                onClick={() => setFormData({...formData, tag: tag})}
+                                className={`text-[10px] px-2.5 py-1.5 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-400 hover:text-blue-600'}`}
+                            >
+                                {tag}
+                            </button>
+                        ))}
+                    </div>
+                )}
              </div>
            ))}
         </div>
@@ -152,18 +148,32 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
 
 const PageHeader = ({ title, subtitle, action }) => (
   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-    <div><h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">{title}</h2><p className="text-slate-500 text-sm mt-1 font-medium">{subtitle}</p></div>
+    <div>
+        <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">{title}</h2>
+        <p className="text-slate-500 text-sm mt-1 font-medium">{subtitle}</p>
+    </div>
     <div className="w-full md:w-auto">{action}</div>
   </div>
 );
 
 const StatusBadge = ({ status }) => {
-  const styles = { "To Do": "bg-slate-100 text-slate-600 border-slate-200", "In Progress": "bg-blue-50 text-blue-600 border-blue-100", "In Review": "bg-amber-50 text-amber-600 border-amber-100", "Done": "bg-emerald-50 text-emerald-600 border-emerald-100", "Urgent": "bg-red-50 text-red-600 border-red-100" };
+  const styles = {
+    "To Do": "bg-slate-100 text-slate-600 border-slate-200",
+    "In Progress": "bg-blue-50 text-blue-600 border-blue-100", 
+    "In Review": "bg-amber-50 text-amber-600 border-amber-100", 
+    "Done": "bg-emerald-50 text-emerald-600 border-emerald-100", 
+    "Urgent": "bg-red-50 text-red-600 border-red-100"
+  };
   return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
 const StatusDonutChart = ({ stats }) => {
-  const total = stats.total || 1; const donePercent = (stats.done / total) * 100; const progressPercent = (stats.progress / total) * 100; const circumference = 2 * Math.PI * 40;
+  const total = stats.total || 1; 
+  const donePercent = (stats.done / total) * 100;
+  const progressPercent = (stats.progress / total) * 100;
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+
   return (
     <div className="relative w-48 h-48 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
@@ -172,12 +182,15 @@ const StatusDonutChart = ({ stats }) => {
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
-      <div className="absolute text-center"><span className="text-4xl font-black text-slate-800">{stats.total}</span><span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TASKS</span></div>
+      <div className="absolute text-center">
+        <span className="text-4xl font-black text-slate-800">{stats.total}</span>
+        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TASKS</span>
+      </div>
     </div>
   );
 };
 
-// --- SCREENS ---
+// --- LOGIN SCREEN ---
 const LoginScreen = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -189,19 +202,7 @@ const LoginScreen = () => {
       const user = result.user;
       const docRef = doc(db, "user_profiles", user.uid);
       const docSnap = await getDoc(docRef);
-      
-      // Auto-Assign Admin if it's the first user, else 'Pending'
-      if (!docSnap.exists()) {
-         const usersSnap = await getDoc(doc(db, "system_meta", "users_count")); // Check metadata or just query
-         // Simplified: Just set Pending by default, manually approve in DB first time, or...
-         // Let's check if any users exist. If 0, make Admin.
-         // For simplicity in this code, everyone is 'Pending' except if hardcoded or manual DB change. 
-         // But I will add logic: First user ever is Admin.
-         
-         // Note: Firestore doesn't support "count all" cheaply without aggregation query.
-         // Let's assume Pending by default.
-         await setDoc(docRef, { phone: "", role: "Member", status: "Pending", email: user.email, displayName: user.displayName, photoURL: user.photoURL, createdAt: serverTimestamp() });
-      }
+      if (!docSnap.exists()) await setDoc(docRef, { phone: "", role: "Member", email: user.email });
     } catch (err) { setError("เข้าสู่ระบบไม่สำเร็จ: " + err.message); }
     setLoading(false);
   };
@@ -209,11 +210,20 @@ const LoginScreen = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 font-sans p-4">
       <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md border border-white/50 backdrop-blur-sm text-center relative overflow-hidden">
          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
-         <div className="mb-8"><h1 className="text-4xl font-black text-slate-900 tracking-tight">TEAM TAWEE</h1><p className="text-blue-600 font-bold tracking-widest text-xs uppercase mt-2 bg-blue-50 inline-block px-3 py-1 rounded-full">Stand Together</p></div>
-         <h2 className="text-xl font-bold text-slate-800 mb-2">ยินดีต้อนรับสู่ระบบ</h2><p className="text-slate-500 text-sm mb-8">ศูนย์ปฏิบัติการและบริหารงานยุทธศาสตร์</p>
+         <div className="mb-8">
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">TEAM TAWEE</h1>
+            <p className="text-blue-600 font-bold tracking-widest text-xs uppercase mt-2 bg-blue-50 inline-block px-3 py-1 rounded-full">Stand Together</p>
+         </div>
+         
+         <h2 className="text-xl font-bold text-slate-800 mb-2">ยินดีต้อนรับสู่ระบบ</h2>
+         <p className="text-slate-500 text-sm mb-8">ศูนย์ปฏิบัติการและบริหารงานยุทธศาสตร์</p>
+         
          {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4 font-medium border border-red-100">{error}</div>}
+
          <button onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white border-2 border-slate-200 text-slate-700 font-bold py-3.5 rounded-xl hover:bg-slate-50 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-center gap-3 group">
-            {loading ? <RefreshCw className="w-5 h-5 animate-spin text-blue-600" /> : <svg className="w-5 h-5 transition-transform group-hover:scale-110" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>}
+            {loading ? <RefreshCw className="w-5 h-5 animate-spin text-blue-600" /> : (
+                <svg className="w-5 h-5 transition-transform group-hover:scale-110" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
+            )}
             {loading ? 'กำลังเชื่อมต่อ...' : 'เข้าสู่ระบบด้วย Google'}
          </button>
       </div>
@@ -221,17 +231,7 @@ const LoginScreen = () => {
   );
 };
 
-const PendingScreen = ({ onLogout }) => (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 font-sans p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
-            <div className="mx-auto bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mb-4"><Lock className="w-8 h-8 text-amber-600"/></div>
-            <h2 className="text-xl font-bold text-slate-800 mb-2">รอการอนุมัติสิทธิ์</h2>
-            <p className="text-slate-500 text-sm mb-6">บัญชีของคุณกำลังรอการตรวจสอบจาก Admin กรุณาติดต่อผู้ดูแลระบบ</p>
-            <button onClick={onLogout} className="text-red-500 font-bold hover:underline text-sm">ออกจากระบบ</button>
-        </div>
-    </div>
-);
-
+// --- EDIT PROFILE MODAL ---
 const ProfileModal = ({ isOpen, onClose, user, userProfile, onUpdate }) => {
   const [name, setName] = useState(user?.displayName || '');
   const [photo, setPhoto] = useState(user?.photoURL || '');
@@ -263,21 +263,16 @@ export default function TeamTaweeApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Data
   const [tasks, setTasks] = useState([]);
   const [plans, setPlans] = useState([]);
   const [media, setMedia] = useState([]);
   const [channels, setChannels] = useState([]); 
   const [publishedLinks, setPublishedLinks] = useState([]); 
-  const [usersList, setUsersList] = useState([]); // Admin only
-  const [activityLogs, setActivityLogs] = useState([]); // Logs
 
-  // UI
   const [hideDone, setHideDone] = useState(false);
   const [filterTag, setFilterTag] = useState('All');
   const [isGlobalLoading, setIsGlobalLoading] = useState(false); 
   const [isDataLoading, setIsDataLoading] = useState(true); 
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   
   const [editingTask, setEditingTask] = useState(null);
   const [urgentModal, setUrgentModal] = useState(null); 
@@ -286,61 +281,56 @@ export default function TeamTaweeApp() {
   const [isDistOpen, setIsDistOpen] = useState(false); 
   const [isSopOpen, setIsSopOpen] = useState(false); 
 
+  // --- BACK BUTTON FIX ---
   useEffect(() => {
-    const titles = { dashboard: 'ภาพรวม', strategy: 'ยุทธศาสตร์', masterplan: 'แผนงานหลัก', rapidresponse: 'ปฏิบัติการด่วน', assets: 'คลังอาวุธ', admin: 'ผู้ดูแลระบบ' };
-    document.title = `${titles[activeTab] || 'App'} | TEAM TAWEE`;
+    const handlePopState = (event) => {
+      if (event.state && event.state.tab) {
+        setActiveTab(event.state.tab);
+      } else {
+        setActiveTab('dashboard');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    window.history.replaceState({ tab: 'dashboard' }, '', '#dashboard');
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (tabId) => {
+    if (activeTab === tabId) return;
+    setActiveTab(tabId);
+    window.history.pushState({ tab: tabId }, '', `#${tabId}`);
+    setIsMobileMenuOpen(false);
+  };
+
+  useEffect(() => {
+    const titles = { dashboard: 'ภาพรวม', strategy: 'ยุทธศาสตร์', masterplan: 'แผนงานหลัก', rapidresponse: 'ปฏิบัติการด่วน', assets: 'คลังอาวุธ' };
+    document.title = `${titles[activeTab]} | TEAM TAWEE`;
   }, [activeTab]);
 
-  // Auth & Profile
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        const docSnap = await getDoc(doc(db, "user_profiles", user.uid));
-        if (docSnap.exists()) {
-            const profile = docSnap.data();
-            setUserProfile(profile);
-            // If first user (hack for demo), update to Admin if needed manually or via console. 
-            // Here we respect DB. 
-        }
+        const docRef = doc(db, "user_profiles", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) setUserProfile(docSnap.data());
       } else setUserProfile(null);
       setAuthLoading(false);
     });
     return unsubscribe;
   }, []);
 
-  // Data Fetching
   useEffect(() => {
-    if (!currentUser || !userProfile || userProfile.status === 'Pending') return;
-    
+    if (!currentUser) return;
     const unsubTasks = onSnapshot(collection(db, "tasks"), (s) => setTasks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubPlans = onSnapshot(collection(db, "plans"), (s) => setPlans(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubMedia = onSnapshot(collection(db, "media"), (s) => setMedia(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubChannels = onSnapshot(collection(db, "channels"), (s) => setChannels(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     
-    // Admin Fetching
-    let unsubUsers = () => {};
-    let unsubLogs = () => {};
-    if (userProfile.role === 'Admin') {
-        unsubUsers = onSnapshot(collection(db, "user_profiles"), (s) => setUsersList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-        unsubLogs = onSnapshot(query(collection(db, "logs"), orderBy("createdAt", "desc"), where("createdAt", ">", new Date(Date.now() - 86400000 * 7))), (s) => setActivityLogs(s.docs.map(d => ({ id: d.id, ...d.data() })))); // Last 7 days logs
-    }
-
     setIsDataLoading(false);
-    return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); unsubUsers(); unsubLogs(); };
-  }, [currentUser, userProfile]);
-
-  // --- LOGGER HELPER ---
-  const logActivity = async (action, details) => {
-      try {
-        await addDoc(collection(db, "logs"), {
-            action, details, 
-            user: currentUser.displayName || currentUser.email,
-            createdAt: serverTimestamp()
-        });
-      } catch(e) { console.error("Log failed", e); }
-  };
+    return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); };
+  }, [currentUser]);
 
   const handleUpdateProfile = async (newName, newPhoto, newPhone) => {
       if(!currentUser) return;
@@ -348,7 +338,6 @@ export default function TeamTaweeApp() {
       try {
           await updateProfile(currentUser, { displayName: newName, photoURL: newPhoto });
           await setDoc(doc(db, "user_profiles", currentUser.uid), { phone: newPhone }, { merge: true });
-          logActivity("Update Profile", `Updated profile for ${newName}`);
           const updatedUser = { ...currentUser, displayName: newName, photoURL: newPhoto };
           setCurrentUser(updatedUser); setUserProfile(prev => ({ ...prev, phone: newPhone }));
       } catch (err) { alert("Error: " + err.message); }
@@ -367,18 +356,20 @@ export default function TeamTaweeApp() {
     });
   };
 
-  // --- CORE ACTIONS ---
+  // --- ACTIONS ---
   const saveTaskChange = async (task) => {
     if (!task.id) return;
     setIsGlobalLoading(true);
     try {
-        const data = { 
-            title: task.title || "", status: task.status || "To Do", tag: task.tag || "", 
-            link: task.link || "", deadline: task.deadline || "", 
-            updatedBy: currentUser.displayName, updatedAt: new Date().toISOString()
-        };
-        await updateDoc(doc(db, "tasks", task.id), data);
-        logActivity("Edit Task", `Edited task: ${task.title}`);
+        await updateDoc(doc(db, "tasks", task.id), { 
+            title: task.title || "", 
+            status: task.status || "To Do",
+            tag: task.tag || "", 
+            link: task.link || "", 
+            deadline: task.deadline || "", 
+            updatedBy: currentUser.displayName, 
+            updatedAt: new Date().toISOString()
+        });
         setEditingTask(null);
     } catch (e) { alert("บันทึกไม่สำเร็จ: " + e.message); }
     setIsGlobalLoading(false);
@@ -389,10 +380,13 @@ export default function TeamTaweeApp() {
     setIsGlobalLoading(true);
     try {
         await updateDoc(doc(db, "tasks", task.id), { 
-            title: task.title || "", status: task.status || "To Do", link: task.link || "", sop: task.sop || [],
-            updatedBy: currentUser.displayName, updatedAt: new Date().toISOString()
+            title: task.title || "", 
+            status: task.status || "To Do",
+            link: task.link || "", 
+            sop: task.sop || [],
+            updatedBy: currentUser.displayName, 
+            updatedAt: new Date().toISOString()
         });
-        logActivity("Update Case", `Updated urgent case: ${task.title}`);
         setUrgentModal(null);
     } catch (e) { alert("บันทึกไม่สำเร็จ: " + e.message); }
     setIsGlobalLoading(false);
@@ -409,49 +403,109 @@ export default function TeamTaweeApp() {
             ...data, status: "To Do", link: "", columnKey,
             createdBy: currentUser.displayName, createdAt: new Date().toISOString()
         });
-        logActivity("Create Task", `Created task: ${data.title}`);
     });
   };
 
-  // ... (Asset Actions similar to before, adding logActivity calls)
-  const addChannel = () => openFormModal("เพิ่มช่องทาง", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options:['Own','Partner','Web']}, {key:'url', label:'URL'}], async(d)=>{ await addDoc(collection(db,"channels"), {...d, count:0}); logActivity("Add Channel", d.name); });
-  const updateChannel = (c) => openFormModal("แก้ไขช่องทาง", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options:['Own','Partner','Web'], defaultValue:c.type}, {key:'url', label:'URL', defaultValue:c.url}], async(d)=>{ await updateDoc(doc(db,"channels",c.id), d); logActivity("Edit Channel", c.name); });
-  const addMedia = () => openFormModal("เพิ่มสื่อ", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options:['TV','Online','Group']}, {key:'phone', label:'เบอร์'}, {key:'line', label:'Line'}], async(d)=>{ await addDoc(collection(db,"media"), {...d, active:true}); logActivity("Add Media", d.name); });
-  const editMedia = (c) => openFormModal("แก้ไขสื่อ", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options:['TV','Online','Group'], defaultValue:c.type}, {key:'phone', label:'เบอร์', defaultValue:c.phone}, {key:'line', label:'Line', defaultValue:c.line}], async(d)=>{ await updateDoc(doc(db,"media",c.id), d); logActivity("Edit Media", c.name); });
-  const addPublishedLink = () => openFormModal("เพิ่มลิงก์ข่าว", [{key:'title', label:'หัวข้อ'}, {key:'url', label:'URL'}, {key:'platform', label:'Platform'}], async(d)=>{ await addDoc(collection(db,"published_links"), {...d, createdBy:currentUser.displayName, createdAt:serverTimestamp()}); logActivity("Add Link", d.title); });
-  
-  const deleteLink = async (id) => { if(confirm("ลบ?")) { await deleteDoc(doc(db,"published_links",id)); logActivity("Delete Link", id); }};
-  const updateDist = async (id, c) => updateDoc(doc(db,"channels",id), {count:Math.max(0,c||0)});
-  const deleteChannel = async (id) => { if(confirm("ลบ?")) { await deleteDoc(doc(db,"channels",id)); logActivity("Delete Channel", id); }};
-  const toggleMediaActive = async (c) => updateDoc(doc(db,"media",c.id), {active:!c.active});
-  const deleteMedia = async (id) => { if(confirm("ลบ?")) { await deleteDoc(doc(db,"media",id)); logActivity("Delete Media", id); }};
-
-  // Plan Actions
-  const togglePlanItem = async (pid, idx, items) => {
-    const newItems = [...items]; newItems[idx].completed = !newItems[idx].completed;
-    const progress = Math.round((newItems.filter(i=>i.completed).length/newItems.length)*100);
-    await updateDoc(doc(db,"plans",pid), {items:newItems, progress});
-    logActivity("Update Plan", "Toggled item");
+  // --- ASSET ACTIONS ---
+  const addChannel = () => {
+    openFormModal("เพิ่มช่องทางเผยแพร่", [
+        { key: 'name', label: 'ชื่อช่องทาง', placeholder: 'เช่น Facebook Page' },
+        { key: 'type', label: 'ประเภท', type: 'select', options: ['Own Media', 'Partner', 'Influencer', 'Web'], defaultValue: 'Own Media' },
+        { key: 'url', label: 'ลิงก์ URL', placeholder: 'https://...' }
+    ], async (data) => {
+        await addDoc(collection(db, "channels"), { ...data, count: 0 });
+    });
   };
-  const editPlanTitle = (p) => openFormModal("แก้ชื่อแผน", [{key:'title', label:'ชื่อ', defaultValue:p.title}], async(d)=> { await updateDoc(doc(db,"plans",p.id), d); logActivity("Edit Plan Title", d.title); });
-  const addPlan = () => openFormModal("สร้างแผนใหม่", [{key:'title', label:'ชื่อแผน'}], async(d)=> { await addDoc(collection(db,"plans"), {...d, progress:0, items:[]}); logActivity("Create Plan", d.title); });
-  const removePlanItem = async (pid, idx, items) => { if(confirm("ลบ?")) { const newItems = items.filter((_,i)=>i!==idx); const p = Math.round((newItems.filter(i=>i.completed).length/newItems.length)*100)||0; await updateDoc(doc(db,"plans",pid), {items:newItems, progress:p}); logActivity("Delete Plan Item", pid); }};
-  const editPlanItem = (pid, idx, items) => openFormModal("แก้รายการ", [{key:'text', label:'ข้อความ', defaultValue:items[idx].text}], async(d)=> { const newItems=[...items]; newItems[idx].text=d.text; await updateDoc(doc(db,"plans",pid), {items:newItems}); logActivity("Edit Plan Item", pid); });
+  const updateChannel = (channel) => {
+      openFormModal("แก้ไขช่องทาง", [
+        { key: 'name', label: 'ชื่อช่องทาง', defaultValue: channel.name },
+        { key: 'type', label: 'ประเภท', type: 'select', options: ['Own Media', 'Partner', 'Influencer', 'Web'], defaultValue: channel.type },
+        { key: 'url', label: 'ลิงก์ URL', defaultValue: channel.url }
+      ], async (data) => await updateDoc(doc(db, "channels", channel.id), data));
+  };
+
+  const addMedia = () => {
+    openFormModal("เพิ่มรายชื่อสื่อใหม่", [
+        { key: 'name', label: 'ชื่อ/สังกัด', placeholder: 'เช่น คุณส้ม (Ch 3)' },
+        { key: 'type', label: 'ประเภทสื่อ', type: 'select', options: ['TV', 'Online', 'Newspaper', 'Influencer', 'Group'], defaultValue: 'Online' },
+        { key: 'phone', label: 'เบอร์โทร', placeholder: '-' },
+        { key: 'line', label: 'Line ID', placeholder: '-' }
+    ], async (data) => {
+        await addDoc(collection(db, "media"), { ...data, active: true });
+    });
+  };
+
+  const addPublishedLink = () => {
+    openFormModal("แปะลิงก์ข่าวที่ลงแล้ว", [
+        { key: 'title', label: 'หัวข้อข่าว/โพสต์', placeholder: 'เช่น ข่าวสดลงข่าวท่านทวี...' },
+        { key: 'url', label: 'ลิงก์ URL', placeholder: 'https://...' },
+        { key: 'platform', label: 'แพลตฟอร์ม', placeholder: 'Facebook, Web...' }
+    ], async (data) => {
+        await addDoc(collection(db, "published_links"), { 
+            ...data, createdBy: currentUser.displayName, createdAt: serverTimestamp() 
+        });
+    });
+  };
+  const deleteLink = async (id) => { if(confirm("ลบลิงก์นี้?")) await deleteDoc(doc(db, "published_links", id)); };
+  const updateDist = async (id, count) => updateDoc(doc(db, "channels", id), { count: Math.max(0, count || 0) });
+  const deleteChannel = async (id) => { if(confirm("ลบช่องทางนี้?")) await deleteDoc(doc(db, "channels", id)); };
+  const toggleMediaActive = async (contact) => await updateDoc(doc(db, "media", contact.id), { active: !contact.active });
+  const deleteMedia = async (id) => { if(confirm("ลบรายชื่อนี้?")) await deleteDoc(doc(db, "media", id)); };
+
+  // --- FIXED: Edit Media Function ---
+  const editMedia = (contact) => {
+    openFormModal("แก้ไขรายชื่อสื่อ", [
+        { key: 'name', label: 'ชื่อ/สังกัด', defaultValue: contact.name },
+        { key: 'type', label: 'ประเภทสื่อ', type: 'select', options: ['TV', 'Online', 'Newspaper', 'Influencer', 'Group'], defaultValue: contact.type },
+        { key: 'phone', label: 'เบอร์โทร', defaultValue: contact.phone },
+        { key: 'line', label: 'Line ID', defaultValue: contact.line }
+    ], async (data) => {
+        await updateDoc(doc(db, "media", contact.id), data);
+    });
+  };
+
+  const togglePlanItem = async (planId, itemIndex, currentItems) => {
+    const newItems = [...currentItems];
+    newItems[itemIndex].completed = !newItems[itemIndex].completed;
+    const progress = Math.round((newItems.filter(i=>i.completed).length / newItems.length) * 100);
+    await updateDoc(doc(db, "plans", planId), { items: newItems, progress });
+  };
+  const editPlanTitle = (plan) => openFormModal("แก้ไขชื่อแผนงาน", [{key:'title', label:'ชื่อแผนงาน', defaultValue: plan.title}], async(d)=> updateDoc(doc(db,"plans",plan.id), d));
+  const addPlan = () => openFormModal("สร้างแผนงานใหม่", [{key:'title', label:'ชื่อแผนงาน'}], async(d)=> addDoc(collection(db,"plans"), { ...d, progress:0, items:[] }));
+
+  // --- FIXED: Action Item Edit/Remove Logic ---
+  const removePlanItem = async (planId, originalIndex, currentItems) => {
+    if (confirm("ลบรายการนี้?")) {
+      const newItems = currentItems.filter((_, idx) => idx !== originalIndex);
+      const progress = Math.round((newItems.filter(i => i.completed).length / newItems.length) * 100) || 0;
+      await updateDoc(doc(db, "plans", planId), { items: newItems, progress });
+    }
+  };
+
+  const editPlanItem = (planId, originalIndex, currentItems) => {
+    openFormModal("แก้ไขรายการ", [{key: 'text', label: 'ข้อความ', defaultValue: currentItems[originalIndex].text}], async(data) => {
+      const newItems = [...currentItems];
+      newItems[originalIndex].text = data.text;
+      await updateDoc(doc(db, "plans", planId), { items: newItems });
+    });
+  };
 
   const createUrgentCase = async () => {
-    openFormModal("เปิดเคสด่วน", [{key:'title', label:'หัวข้อ'}, {key:'deadline', label:'เสร็จภายใน', type:'date'}], async(d) => {
-        await addDoc(collection(db,"tasks"), { ...d, status:"To Do", role:"Hunter", tag:"Urgent", link:"", columnKey:"defender", sop:DEFAULT_SOP, createdBy:currentUser.displayName, createdAt:new Date().toISOString() });
-        alert("เปิดเคสแล้ว!"); logActivity("Open Urgent Case", d.title);
+    openFormModal("เปิดเคสด่วน (New Urgent Case)", [
+        { key: 'title', label: 'หัวข้อประเด็น', placeholder: 'เช่น ชี้แจงข่าวบิดเบือนเรื่อง...' },
+        { key: 'deadline', label: 'ต้องเสร็จภายใน', type: 'date' }
+    ], async (data) => {
+        await addDoc(collection(db, "tasks"), { 
+            ...data, 
+            status: "To Do", role: "Hunter", tag: "Urgent", 
+            link: "", columnKey: "defender",
+            sop: DEFAULT_SOP, 
+            createdBy: currentUser.displayName, createdAt: new Date().toISOString()
+        });
+        alert("เปิดเคสเรียบร้อย! จัดการได้ในหน้านี้ทันที");
     });
   };
 
-  // Admin Actions
-  const updateUserStatus = async (uid, status, role) => {
-     await updateDoc(doc(db, "user_profiles", uid), { status, role });
-     logActivity("Admin Update User", `${uid} -> ${status} ${role}`);
-  };
-
-  // --- VIEW PREP ---
   const groupedTasks = {
     solver: tasks.filter(t => t.columnKey === 'solver'),
     principles: tasks.filter(t => t.columnKey === 'principles'),
@@ -459,6 +513,7 @@ export default function TeamTaweeApp() {
     expert: tasks.filter(t => t.columnKey === 'expert'),
     backoffice: tasks.filter(t => t.columnKey === 'backoffice')
   };
+  
   const urgentTasks = tasks.filter(t => t.tag === 'Urgent');
   const allTags = ['All', ...new Set([...PRESET_TAGS, ...tasks.map(t => t.tag)].filter(Boolean))];
   
@@ -469,11 +524,9 @@ export default function TeamTaweeApp() {
     { id: 'rapidresponse', title: 'ปฏิบัติการด่วน', subtitle: 'Rapid Response', icon: Zap, color: 'text-red-500' },
     { id: 'assets', title: 'คลังอาวุธ', subtitle: 'Assets', icon: Database },
   ];
-  if(userProfile?.role === 'Admin') navItems.push({ id: 'admin', title: 'ผู้ดูแลระบบ', subtitle: 'Admin & Logs', icon: Shield });
 
   if (authLoading) return <div className="flex h-screen items-center justify-center bg-slate-50"><RefreshCw className="w-8 h-8 animate-spin text-blue-600" /></div>;
   if (!currentUser) return <LoginScreen />;
-  if (userProfile?.status === 'Pending') return <PendingScreen onLogout={() => signOut(auth)} />;
 
   const renderContent = () => {
     if (isDataLoading) return <div className="flex h-64 items-center justify-center text-slate-400"><RefreshCw className="w-6 h-6 animate-spin mr-2"/> Loading Database...</div>;
@@ -481,20 +534,21 @@ export default function TeamTaweeApp() {
     switch (activeTab) {
       case 'dashboard':
         const taskStats = { done: 0, pending: 0, total: 0, progress: 0, todo: 0 };
-        tasks.forEach(t => { if(t.status==='Done') taskStats.done++; else if(t.status==='In Progress') { taskStats.progress++; taskStats.pending++; } else { taskStats.todo++; taskStats.pending++; } taskStats.total++; });
+        tasks.forEach(t => { 
+            if(t.status==='Done') { taskStats.done++; }
+            else if(t.status==='In Progress') { taskStats.progress++; taskStats.pending++; }
+            else { taskStats.todo++; taskStats.pending++; }
+            taskStats.total++; 
+        });
 
         return (
           <div className="space-y-6 animate-fadeIn">
-            <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" action={
-                 <div className="flex gap-2">
-                    <button onClick={() => setIsSearchOpen(true)} className="p-2 bg-white border rounded-lg text-slate-500 hover:text-blue-600 hover:border-blue-300 shadow-sm"><Search className="w-5 h-5" /></button>
-                    <button onClick={() => addNewTask('solver')} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2"><Plus className="w-4 h-4" /> เพิ่มงาน</button>
-                    <button onClick={createUrgentCase} className="bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> เคสด่วน</button>
-                 </div>
-            } />
+            <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center relative overflow-hidden">
+              {/* 1. Status Chart */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center justify-center relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><Activity className="w-24 h-24 text-blue-600" /></div>
                  <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left z-10">Real-time Status</p>
                  <StatusDonutChart stats={taskStats} />
                  <div className="flex justify-center gap-6 mt-6 text-xs font-bold w-full">
@@ -504,22 +558,82 @@ export default function TeamTaweeApp() {
                  </div>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-                 <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-slate-800">Distribution Hub</h3><button onClick={() => navigateTo('assets')} className="text-xs text-blue-600 hover:underline">จัดการ →</button></div>
-                 <div className="grid grid-cols-2 gap-3 flex-1 content-start">
-                    {channels.slice(0,4).map(item => (
-                        <div key={item.id} className="bg-slate-50 p-3 rounded border border-slate-100 text-center relative group">
-                            <h4 className="font-bold text-slate-700 text-xs truncate">{item.name}</h4>
-                            <span className="text-2xl font-black text-blue-600 block">{item.count || 0}</span>
-                            <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition absolute -top-2 inset-x-0">
-                                <button onClick={() => updateDist(item.id, (item.count || 0) - 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-red-600 z-10"><Minus className="w-3 h-3" /></button>
-                                <button onClick={() => updateDist(item.id, (item.count || 0) + 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-blue-600 z-10"><Plus className="w-3 h-3" /></button>
+              {/* 2. Strategy Preview (Moved to Top) */}
+              <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                 <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Strategy 4 แกน</p><button onClick={() => navigateTo('strategy')} className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600 font-bold hover:bg-slate-200 transition">ดูทั้งหมด</button></div>
+                 <div className="grid grid-cols-2 gap-3 flex-1">
+                    {['solver', 'principles', 'defender', 'expert'].map((key) => {
+                        const items = groupedTasks[key] || [];
+                        return (
+                            <div key={key} className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex flex-col justify-start items-start relative hover:border-blue-300 transition cursor-pointer" onClick={() => navigateTo('strategy')}>
+                                <div className="flex justify-between w-full mb-2">
+                                   <span className="text-[10px] font-bold uppercase text-slate-500">{key}</span>
+                                   <span className="text-[10px] font-black bg-white px-1.5 rounded text-slate-700 shadow-sm">{items.length}</span>
+                                </div>
+                                {items.length > 0 ? (
+                                    <div className="space-y-1.5 w-full">
+                                        {items.slice(0,2).map(t => (
+                                            <div key={t.id} className="flex items-center gap-2 w-full">
+                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${t.status === 'Done' ? 'bg-green-400' : 'bg-blue-400'}`}></div>
+                                                <p className="text-xs text-slate-700 truncate flex-1 font-medium">{t.title}</p>
+                                            </div>
+                                        ))}
+                                        {items.length > 2 && <p className="text-[9px] text-slate-400 pl-4">+ อีก {items.length - 2} งาน</p>}
+                                    </div>
+                                ) : <p className="text-[10px] text-slate-300 w-full text-center mt-2">- ว่าง -</p>}
+                            </div>
+                        )
+                    })}
+                 </div>
+              </div>
+            </div>
+
+            {/* Row 2: Distribution & Master Plan */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+               {/* Distribution Hub */}
+               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col h-full">
+                 <div className="p-6 border-b border-slate-100 flex-shrink-0">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-slate-800">Distribution Hub</h3>
+                        <button onClick={() => navigateTo('assets')} className="text-xs text-blue-600 hover:underline">จัดการ →</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        {channels.slice(0,4).map(item => (
+                            <div key={item.id} className="bg-slate-50 p-2 rounded border border-slate-100 text-center relative group">
+                                <h4 className="font-bold text-slate-700 text-xs truncate">{item.name}</h4>
+                                <span className="text-2xl font-black text-blue-600 block">{item.count || 0}</span>
+                                <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition absolute -top-2 inset-x-0">
+                                    <button onClick={() => updateDist(item.id, (item.count || 0) - 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-red-600 z-10"><Minus className="w-3 h-3" /></button>
+                                    <button onClick={() => updateDist(item.id, (item.count || 0) + 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-blue-600 z-10"><Plus className="w-3 h-3" /></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                 </div>
+                 
+                 {/* News Links */}
+                 <div className="flex-1 bg-slate-50/50 flex flex-col min-h-[200px]">
+                    <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition border-b border-slate-200" onClick={() => setIsDistOpen(!isDistOpen)}>
+                       <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500" /><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าวที่ลงแล้ว</h3></div>
+                       {isDistOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                    </div>
+                    {isDistOpen && (
+                        <div className="p-4 overflow-y-auto custom-scrollbar flex-1">
+                            <button onClick={addPublishedLink} className="w-full text-xs bg-white text-blue-600 py-2.5 rounded-lg border border-blue-200 font-bold mb-3 hover:bg-blue-50 shadow-sm">+ เพิ่มลิงก์</button>
+                            <div className="space-y-2">
+                                {publishedLinks.map(link => (
+                                    <div key={link.id} className="flex justify-between items-start p-2.5 border rounded-lg bg-white hover:border-blue-300 transition group shadow-sm">
+                                        <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline truncate w-full font-medium block pr-2">{link.title}</a>
+                                        <button onClick={() => deleteLink(link.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    ))}
+                    )}
                  </div>
               </div>
 
+              {/* 3. Master Plan Preview */}
               <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
                  <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan</p><button onClick={() => navigateTo('masterplan')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button></div>
                  <div className="space-y-4 flex-1">
@@ -532,255 +646,334 @@ export default function TeamTaweeApp() {
                  </div>
               </div>
             </div>
+          </div>
+        );
 
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col overflow-hidden">
-                 <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition border-b border-slate-100" onClick={() => setIsDistOpen(!isDistOpen)}>
-                    <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500" /><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าว (News Links)</h3></div>
-                    {isDistOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                 </div>
-                 {isDistOpen && (
-                     <div className="p-4 max-h-60 overflow-y-auto custom-scrollbar bg-white">
-                         <button onClick={addPublishedLink} className="w-full text-xs bg-blue-50 text-blue-600 py-2 rounded border border-blue-100 font-bold mb-3 hover:bg-blue-100 shadow-sm">+ เพิ่มลิงก์</button>
-                         <div className="space-y-2">
-                             {publishedLinks.map(link => (
-                                 <div key={link.id} className="flex justify-between items-start p-2 border rounded hover:bg-slate-50 group">
-                                     <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline truncate w-full font-medium block pr-2">{link.title}</a>
-                                     <button onClick={() => deleteLink(link.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
-                                 </div>
-                             ))}
-                         </div>
-                     </div>
-                 )}
+      case 'strategy':
+        return (
+          <div className="h-full flex flex-col">
+            <PageHeader title="กระดานยุทธศาสตร์ 4 แกน" subtitle="Strategy Board & Tasks" action={
+                    <div className="flex gap-3">
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                             <Filter className="w-4 h-4 text-slate-500" />
+                             <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
+                        </div>
+                        <button onClick={() => setHideDone(!hideDone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button>
+                    </div>
+            } />
+            <div className="overflow-x-auto pb-4 flex-1 custom-scrollbar">
+              <div className="flex flex-col md:flex-row gap-4 min-w-full md:min-w-[1200px] h-full">
+                {[
+                  { key: 'solver', title: '1. ผลงาน (Solver)', color: 'blue' },
+                  { key: 'principles', title: '2. จุดยืน (Principles)', color: 'purple' },
+                  { key: 'defender', title: '3. ตอบโต้ (Defender)', color: 'red' },
+                  { key: 'expert', title: '4. ผู้เชี่ยวชาญ (Expert)', color: 'indigo' },
+                  { key: 'backoffice', title: '5. หลังบ้าน (Back Office)', color: 'slate' }
+                ].map((col) => (
+                  <div key={col.key} className={`w-full md:w-1/5 bg-${col.color}-50/50 rounded-2xl p-4 border border-${col.color}-100 flex flex-col shadow-sm`}>
+                    <div className={`mb-3 pb-2 border-b border-${col.color}-200/50`}>
+                        <div className="flex justify-between items-center mb-1">
+                            <h3 className={`font-black text-${col.color}-900 text-sm uppercase tracking-wide truncate`}>{col.title}</h3>
+                            <span className={`text-[10px] font-bold bg-white px-2 py-0.5 rounded-full text-${col.color}-600 shadow-sm`}>
+                                {groupedTasks[col.key]?.filter(t => (!hideDone || t.status !== 'Done')).length}
+                            </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight h-8">{COL_DESCRIPTIONS[col.key]}</p>
+                    </div>
+                    <div className="space-y-3 overflow-y-auto max-h-[60vh] md:max-h-[70vh] pr-1 custom-scrollbar flex-1">
+                      {groupedTasks[col.key]?.filter(t => (!hideDone || t.status !== 'Done') && (filterTag === 'All' || t.tag === filterTag)).map(task => (
+                        <div key={task.id} onClick={() => setEditingTask(task)} className={`bg-white p-4 rounded-xl shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer group relative ${task.status === 'Done' ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                          <div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-bold uppercase text-${col.color}-600 bg-${col.color}-50 px-2 py-1 rounded-md`}>{task.tag}</span><StatusBadge status={task.status} /></div>
+                          <h4 className="text-sm font-bold text-slate-800 mb-2 leading-snug group-hover:text-blue-700 transition-colors">{task.title}</h4>
+                          {task.deadline && <div className="flex items-center gap-1.5 text-[10px] text-red-500 font-bold mt-3 bg-red-50 inline-block px-2 py-1 rounded"><Clock className="w-3 h-3" /> {task.deadline}</div>}
+                          {(task.updatedBy || task.createdBy) && <div className="mt-3 pt-2 border-t border-slate-50 text-[9px] text-slate-400 flex items-center gap-1.5"><User className="w-3 h-3" /> {task.updatedBy || task.createdBy}</div>}
+                        </div>
+                      ))}
+                      <button onClick={() => addNewTask(col.key)} className="w-full py-3 text-sm text-slate-400 hover:text-blue-600 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-bold"><Plus className="w-4 h-4" /> เพิ่มงาน</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                 <div className="flex justify-between items-center mb-3"><p className="text-slate-500 text-xs font-bold uppercase">Strategy Board Preview</p><button onClick={() => navigateTo('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ไปที่กระดาน →</button></div>
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {['solver', 'principles', 'defender', 'expert'].map((key) => {
-                        const items = groupedTasks[key] || [];
-                        return (
-                            <div key={key} className="bg-slate-50 p-3 rounded border border-slate-100 h-40 overflow-hidden relative">
-                                <div className="flex justify-between mb-2 border-b border-slate-100 pb-1"><span className="text-[10px] font-bold uppercase text-slate-400">{key}</span><span className="text-[10px] font-bold bg-white px-1.5 rounded border border-slate-200">{items.length}</span></div>
-                                <div className="space-y-1.5">{items.slice(0, 4).map(t => (<div key={t.id} className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full flex-shrink-0 ${t.status === 'Done' ? 'bg-green-400' : 'bg-blue-400'}`}></div><p className="text-xs text-slate-600 truncate">{t.title}</p></div>))}</div>
+            {/* EDIT TASK MODAL */}
+            {editingTask && (
+               <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all relative">
+                     <button onClick={() => setEditingTask(null)} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
+                     <h3 className="font-bold text-xl text-slate-800 mb-6">แก้ไขรายละเอียดงาน</h3>
+                     <div className="space-y-5">
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">ชื่องาน</label><input type="text" value={editingTask.title} onChange={e => setEditingTask({...editingTask, title: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none font-medium" /></div>
+                        <div className="grid grid-cols-2 gap-4">
+                           <div>
+                             <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Tag</label>
+                             <input list="edit-tag-options" type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none pl-9" />
+                             <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                             <datalist id="edit-tag-options">{PRESET_TAGS.map(t=><option key={t} value={t}/>)}</datalist>
+                             <div className="mt-2 flex flex-wrap gap-1.5">{PRESET_TAGS.slice(0,4).map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag: t})} className="text-[9px] border px-2 py-0.5 rounded-full hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition">{t}</button>)}</div>
+                           </div>
+                           <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">สถานะ</label><select value={editingTask.status} onChange={e => setEditingTask({...editingTask, status: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-white focus:border-blue-500 outline-none"><option value="To Do">To Do</option><option value="In Progress">In Progress</option><option value="In Review">In Review</option><option value="Done">Done</option></select></div>
+                        </div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Deadline</label><input type="date" value={editingTask.deadline || ""} onChange={e => setEditingTask({...editingTask, deadline: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none" /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Link ผลงาน</label><div className="flex gap-2"><input type="text" value={editingTask.link || ""} onChange={e => setEditingTask({...editingTask, link: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none" placeholder="https://..." />{editingTask.link && <a href={editingTask.link} target="_blank" rel="noreferrer" className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 border border-blue-100"><ExternalLink className="w-5 h-5" /></a>}</div></div>
+                        
+                        <div className="text-[10px] text-slate-400 bg-slate-50 p-2 rounded border border-slate-100">
+                            <p>Created: {editingTask.createdBy}</p>
+                            {editingTask.updatedBy && <p>Last Update: {editingTask.updatedBy} ({formatDate(editingTask.updatedAt)})</p>}
+                        </div>
+
+                        <div className="flex justify-between pt-6 border-t border-slate-100 gap-4">
+                             <button onClick={async () => { if(confirm("ลบงานนี้?")) { setIsGlobalLoading(true); await deleteDoc(doc(db, "tasks", editingTask.id)); setIsGlobalLoading(false); setEditingTask(null); }}} className="text-red-500 text-sm font-bold hover:bg-red-50 px-4 py-3 rounded-xl transition-colors flex items-center gap-2"><Trash2 className="w-4 h-4"/> ลบงาน</button>
+                             <button onClick={() => saveTaskChange(editingTask)} className="flex-1 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all py-3 flex items-center justify-center gap-2 active:scale-95"><Save className="w-4 h-4" /> บันทึกการแก้ไข</button>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            )}
+          </div>
+        );
+
+      case 'masterplan':
+        return (
+          <div className="space-y-6">
+            <PageHeader title="แผนงานหลัก (Master Plan)" subtitle="Long-term Strategic Roadmap" action={<button onClick={addPlan} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition flex items-center gap-2 shadow-lg shadow-blue-200"><Plus className="w-4 h-4" /> สร้างแผนใหม่</button>} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {plans.map((plan) => {
+                const sortedItems = [...(plan.items || [])].map((item, idx) => ({ ...item, originalIndex: idx })).sort((a, b) => Number(a.completed) - Number(b.completed));
+                return (
+                <div key={plan.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition group">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="flex items-center gap-2 group/title cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition" onClick={() => editPlanTitle(plan)}><h3 className="font-bold text-lg text-slate-800">{plan.title}</h3><Edit2 className="w-4 h-4 text-slate-300 opacity-0 group-hover/title:opacity-100 hover:text-blue-600" /></div>
+                    <button onClick={async () => { if(confirm("ลบแผนนี้?")) await deleteDoc(doc(db, "plans", plan.id)); }} className="text-slate-300 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                  <div className="mb-6"><div className="flex justify-between text-xs text-slate-500 mb-1 font-bold"><span>PROGRESS</span><span>{plan.progress || 0}%</span></div><div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden"><div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full transition-all duration-1000 shadow-sm" style={{ width: `${plan.progress || 0}%` }}></div></div></div>
+                  <div className="bg-slate-50/50 rounded-xl p-1 border border-slate-100">
+                    <ul className="space-y-1">
+                      {sortedItems.map((item, idx) => {
+                         const originalIndex = item.originalIndex; 
+                         return (
+                          <li key={idx} className={`flex items-center justify-between gap-3 text-sm p-2 rounded-lg transition group/item hover:bg-white hover:shadow-sm ${item.completed ? 'opacity-50' : ''}`}>
+                            <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => togglePlanItem(plan.id, originalIndex, plan.items)}>
+                              {item.completed ? <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white shadow-sm"><CheckCircle2 className="w-3.5 h-3.5" /></div> : <div className="w-5 h-5 border-2 border-slate-300 rounded-full hover:border-blue-400 transition"></div>}
+                              <span className={`font-medium ${item.completed ? "text-slate-400" : "text-slate-700"}`}>{item.text}</span>
                             </div>
-                        )
-                    })}
-                 </div>
+                            <div className="flex gap-1 opacity-100">
+                                <button onClick={(e) => { e.stopPropagation(); editPlanItem(plan.id, originalIndex, plan.items); }} className="text-slate-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition"><Edit2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={(e) => { e.stopPropagation(); removePlanItem(plan.id, originalIndex, plan.items); }} className="text-slate-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50 transition"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </li>
+                         );
+                      })}
+                      <li className="pt-2"><button onClick={() => openFormModal("เพิ่มรายการ", [{key:'text', label:'ชื่อรายการ'}], async(d)=> { const newItems=[...(plan.items||[]), {text:d.text, completed:false}]; await updateDoc(doc(db,"plans",plan.id), {items:newItems, progress:Math.round((newItems.filter(i=>i.completed).length/newItems.length)*100)}) })} className="w-full text-center text-xs text-blue-600 font-bold hover:bg-blue-50 py-2 rounded-lg transition border border-dashed border-blue-200">+ เพิ่มรายการ</button></li>
+                    </ul>
+                  </div>
+                </div>
+              )})}
             </div>
           </div>
         );
-      
-      case 'admin':
-        if(userProfile?.role !== 'Admin') return <div className="p-10 text-center text-red-500">Access Denied</div>;
+        
+      case 'rapidresponse': 
         return (
-          <div className="space-y-6 animate-fadeIn">
-             <PageHeader title="ผู้ดูแลระบบ (Admin)" subtitle="User Management & System Logs" />
-             
-             <div className="flex gap-6">
-                <div className="w-1/2 space-y-6">
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Users className="w-5 h-5"/> สมาชิก ({usersList.length})</h3>
-                        <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
-                            {usersList.map(u => (
-                                <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600">{u.displayName?.[0] || "U"}</div>
-                                        <div><p className="text-sm font-bold">{u.displayName || u.email}</p><p className="text-xs text-slate-500">{u.email} • {u.role}</p></div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        {u.status === 'Pending' && <button onClick={()=>updateUserStatus(u.id, 'Active', 'Member')} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded font-bold hover:bg-green-200">อนุมัติ</button>}
-                                        {u.role !== 'Admin' && <button onClick={()=>updateUserStatus(u.id, 'Active', 'Admin')} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded font-bold hover:bg-blue-200">ตั้งเป็น Admin</button>}
-                                    </div>
+            <div className="space-y-6">
+                <PageHeader title="ปฏิบัติการด่วน (Rapid Response)" subtitle="Agile Response Unit" action={<button onClick={createUrgentCase} className="bg-red-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition whitespace-nowrap flex items-center gap-2 active:scale-95"><AlertTriangle className="w-5 h-5" /> เปิดเคสด่วน (New Case)</button>} />
+                
+                <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Left: SOP Guide (Mobile Accordion / Desktop Fixed) */}
+                    <div className={`lg:w-1/3 bg-white rounded-2xl border border-slate-200 shadow-sm h-fit overflow-hidden transition-all ${isSopOpen ? 'max-h-96' : 'max-h-16 lg:max-h-full'}`}>
+                        <div className="p-4 lg:p-6 flex justify-between items-center cursor-pointer lg:cursor-default bg-slate-50 lg:bg-white" onClick={() => setIsSopOpen(!isSopOpen)}>
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2"><FileText className="w-5 h-5 text-slate-500" /> SOP Guide (คู่มือ)</h3>
+                            <ChevronDown className={`w-5 h-5 text-slate-400 lg:hidden transform transition ${isSopOpen ? 'rotate-180' : ''}`} />
+                        </div>
+                        <div className="p-6 pt-0 space-y-4 text-sm text-slate-600 border-t border-slate-100 lg:border-none">
+                            {SOP_GUIDE.map((step, i) => (
+                                <div key={i} className="flex gap-3">
+                                    <span className="font-bold text-blue-600 bg-blue-50 w-6 h-6 flex items-center justify-center rounded-full text-xs flex-shrink-0">{i+1}</span>
+                                    <p className="leading-relaxed">{step.substring(3)}</p>
                                 </div>
                             ))}
                         </div>
                     </div>
-                </div>
-                
-                <div className="w-1/2 bg-slate-900 text-slate-300 p-6 rounded-xl border border-slate-800 shadow-sm h-fit">
-                    <h3 className="font-bold text-white mb-4 flex items-center gap-2"><FileClock className="w-5 h-5"/> Activity Logs</h3>
-                    <div className="space-y-2 text-xs font-mono max-h-96 overflow-y-auto custom-scrollbar">
-                        {activityLogs.map(log => (
-                            <div key={log.id} className="border-b border-slate-800 pb-2 mb-2 last:border-0">
-                                <span className="text-slate-500">{log.createdAt ? formatDate(log.createdAt.toDate()) : '-'}</span>
-                                <p className="text-white font-bold mt-0.5">[{log.user}] {log.action}</p>
-                                <p className="opacity-70">{log.details}</p>
+
+                    {/* Right: Urgent Cases Grid */}
+                    <div className="lg:w-2/3 space-y-6">
+                        <div className="grid grid-cols-1 gap-4">
+                            {urgentTasks.length > 0 ? urgentTasks.map(task => (
+                                <div key={task.id} className="bg-white p-5 rounded-2xl border-l-[6px] border-red-500 shadow-sm hover:shadow-md hover:translate-y-[-2px] transition-all cursor-pointer group" onClick={() => setUrgentModal(task)}>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded shadow-sm animate-pulse">URGENT CASE</span>
+                                        <StatusBadge status={task.status} />
+                                    </div>
+                                    <h3 className="font-bold text-slate-800 mb-3 leading-tight text-lg group-hover:text-red-600 transition">{task.title}</h3>
+                                    {task.deadline && <p className="text-xs text-slate-500 mb-4 flex items-center gap-1.5 bg-slate-50 inline-block px-2 py-1 rounded"><Clock className="w-3.5 h-3.5"/> Deadline: {task.deadline}</p>}
+                                    <div className="pt-3 border-t border-slate-100">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Progress Checklist</p>
+                                        <div className="flex gap-1.5 h-2">
+                                            {(task.sop || []).map((s, i) => (
+                                            <div key={i} className={`flex-1 rounded-full transition-all ${s.done ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-slate-100'}`}></div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="p-16 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 bg-slate-50/50 flex flex-col items-center justify-center">
+                                    <div className="bg-white p-4 rounded-full shadow-sm mb-3"><CheckCircle2 className="w-8 h-8 text-green-500" /></div>
+                                    <p className="font-medium">สถานการณ์ปกติ</p>
+                                    <p className="text-xs mt-1 opacity-70">ยังไม่มีเคสด่วนที่ต้องดำเนินการ</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Quick Contacts (Restored) */}
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mt-8">
+                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Phone className="w-5 h-5 text-slate-500"/> Quick Contacts</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {media.filter(c => c.active).map((c,i) => (
+                                    <div key={i} className="p-4 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-white hover:shadow-md transition group">
+                                        <p className="font-bold text-sm text-slate-800">{c.name}</p>
+                                        <span className="text-[10px] text-slate-400 uppercase font-bold mb-2 block">{c.type}</span>
+                                        <div className="flex flex-col gap-1.5 text-xs text-slate-600">
+                                            <div className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-slate-400"/> {c.phone}</div>
+                                            <div className="flex items-center gap-2"><MessageCircle className="w-3.5 h-3.5 text-green-500"/> {c.line}</div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                        {activityLogs.length === 0 && <p className="text-center opacity-50">No logs yet.</p>}
+                            <button onClick={() => navigateTo('assets')} className="text-xs text-blue-600 font-bold hover:underline mt-4 block w-full text-center border-t border-slate-100 pt-3">ดูรายชื่อทั้งหมด</button>
+                        </div>
                     </div>
                 </div>
-             </div>
-          </div>
+                
+                {/* Urgent Modal (SOP Manager) */}
+                {urgentModal && (
+                   <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
+                         <button onClick={() => setUrgentModal(null)} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full"><X className="w-6 h-6 text-slate-400" /></button>
+                         <div className="flex justify-between items-center mb-6 pt-2">
+                            <h3 className="text-xl font-bold text-red-600 flex items-center gap-2"><AlertTriangle className="w-6 h-6"/> จัดการเคสด่วน</h3>
+                         </div>
+                         
+                         <div className="space-y-5 mb-8">
+                            <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">หัวข้อ</label><input type="text" value={urgentModal.title} onChange={(e)=>setUrgentModal({...urgentModal, title:e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 font-bold text-slate-800 focus:border-red-500 outline-none" /></div>
+                            <div className="grid grid-cols-2 gap-4">
+                               <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">สถานะ</label><select value={urgentModal.status} onChange={(e)=>setUrgentModal({...urgentModal, status:e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-sm bg-white focus:border-red-500 outline-none"><option>To Do</option><option>In Progress</option><option>Done</option></select></div>
+                               <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Link ผลงาน</label><input type="text" value={urgentModal.link} onChange={(e)=>setUrgentModal({...urgentModal, link:e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-sm focus:border-red-500 outline-none" /></div>
+                            </div>
+                         </div>
+
+                         <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
+                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide"><CheckSquare className="w-4 h-4 text-blue-500"/> SOP Checklist</h4>
+                            <div className="space-y-3">
+                               {(urgentModal.sop || []).map((step, idx) => (
+                                  <div key={idx} className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition border ${step.done ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 hover:border-blue-200'}`} onClick={() => {
+                                      const newSop = [...urgentModal.sop];
+                                      newSop[idx].done = !newSop[idx].done;
+                                      setUrgentModal({...urgentModal, sop: newSop});
+                                  }}>
+                                     <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition ${step.done ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 bg-white'}`}>
+                                        {step.done && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                     </div>
+                                     <span className={`text-sm font-medium ${step.done ? 'text-green-700 line-through opacity-70' : 'text-slate-700'}`}>{step.text}</span>
+                                  </div>
+                               ))}
+                            </div>
+                         </div>
+                         
+                         <div className="flex justify-between mt-8 pt-4 border-t border-slate-100">
+                             <button onClick={async () => { if(confirm("ปิดเคสและลบงานนี้?")) { setIsGlobalLoading(true); await deleteDoc(doc(db, "tasks", urgentModal.id)); setIsGlobalLoading(false); setUrgentModal(null); }}} className="text-red-500 text-sm font-bold hover:bg-red-50 px-4 py-3 rounded-xl transition flex items-center gap-2"><Trash2 className="w-4 h-4"/> ลบเคส</button>
+                             <button onClick={() => saveUrgentCase(urgentModal)} className="bg-red-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-100 transition transform active:scale-95">บันทึกความคืบหน้า</button>
+                         </div>
+                      </div>
+                   </div>
+                )}
+            </div>
         );
 
-      // ... (Strategy, Masterplan, RapidResponse, Assets cases remain same logic, using new FormModal & LoadingOverlay)
-      // For brevity, I won't repeat the identical code for other tabs unless you want me to print the WHOLE file again which is very long.
-      // The key changes (FormModal, Search, Admin) are integrated above.
-      // To be safe, I will just dump the WHOLE file content to avoid confusion.
-      case 'strategy': return renderStrategy();
-      case 'masterplan': return renderMasterPlan();
-      case 'rapidresponse': return renderRapidResponse();
-      case 'assets': return renderAssets();
+      case 'assets': 
+        return (
+            <div className="space-y-6">
+                <PageHeader title="คลังอาวุธ (Assets)" subtitle="Media Database & Channels" />
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 rounded-2xl shadow-lg text-white flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-10"><Database className="w-64 h-64" /></div>
+                    <div className="relative z-10">
+                        <h3 className="text-2xl font-black flex items-center gap-3 mb-2"><Database className="w-8 h-8" /> Team Tawee's Google Drive</h3>
+                        <p className="text-blue-100 font-medium">พื้นที่เก็บไฟล์ต้นฉบับ รูปภาพ คลิปดิบ และเอกสารราชการทั้งหมด</p>
+                    </div>
+                    <a href="https://drive.google.com/drive/folders/0AHTNNQ96Wgq-Uk9PVA" target="_blank" rel="noreferrer" className="relative z-10 bg-white text-blue-700 border-none px-6 py-3 rounded-xl font-bold shadow-xl hover:bg-blue-50 transition flex items-center gap-2 active:scale-95"><ExternalLink className="w-5 h-5" /> เปิด Google Drive</a>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-8">
+                    {/* Channels Management */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-slate-800 text-lg">จัดการช่องทางเผยแพร่ (Channels)</h3><button onClick={addChannel} className="text-xs bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-bold transition">+ เพิ่มช่องทาง</button></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {channels.map(c => (
+                                <div key={c.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-md transition group cursor-pointer bg-white" onClick={() => updateChannel(c)}>
+                                    <div className="flex items-center gap-4 overflow-hidden">
+                                        <div className="bg-slate-50 p-3 rounded-lg text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition"><Globe className="w-6 h-6" /></div>
+                                        <div className="truncate">
+                                            <p className="font-bold text-slate-700 truncate group-hover:text-blue-700 transition">{c.name}</p>
+                                            <span className="text-xs font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-500">{c.type}</span>
+                                        </div>
+                                    </div>
+                                    <button onClick={(e) => { e.stopPropagation(); deleteChannel(c.id); }} className="text-slate-300 hover:text-red-500 p-1"><Trash2 className="w-4 h-4" /></button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Media List */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-slate-800 text-lg">ฐานข้อมูลสื่อมวลชน (Media List)</h3><button onClick={addMedia} className="text-xs bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-bold transition">+ เพิ่มรายชื่อ</button></div>
+                        <div className="overflow-x-auto max-h-[500px] custom-scrollbar rounded-xl border border-slate-200">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="px-6 py-4 font-bold">ชื่อ/สังกัด</th>
+                                        <th className="px-6 py-4 font-bold">ติดต่อ</th>
+                                        <th className="px-6 py-4 font-bold text-center">Quick Contact</th>
+                                        <th className="px-6 py-4 font-bold text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {media.map(c => (
+                                        <tr key={c.id} className="hover:bg-slate-50 transition bg-white">
+                                            <td className="px-6 py-4 font-medium text-slate-700">
+                                                {c.name}
+                                                <span className="block text-[10px] font-bold text-blue-600 bg-blue-50 inline-block px-1.5 rounded mt-1 w-fit">{c.type}</span>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs text-slate-500 space-y-1">
+                                                <div className="flex items-center gap-2"><Phone className="w-3 h-3"/> {c.phone}</div>
+                                                <div className="flex items-center gap-2 text-green-600"><MessageCircle className="w-3 h-3"/> {c.line}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <div className="relative inline-block w-10 h-5 align-middle select-none transition duration-200 ease-in">
+                                                    <input type="checkbox" checked={c.active} onChange={() => toggleMediaActive(c)} className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 ease-in-out transform checked:translate-x-5 checked:border-blue-600" />
+                                                    <label className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-300 ${c.active ? 'bg-blue-600' : 'bg-slate-300'}`}></label>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button onClick={() => editMedia(c)} className="text-slate-300 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-lg transition mr-1"><Edit2 className="w-4 h-4" /></button>
+                                                <button onClick={() => deleteMedia(c.id)} className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
       default: return null;
     }
   };
-
-  // --- SUB-RENDER FUNCTIONS (To keep main clean) ---
-  const renderStrategy = () => (
-      <div className="h-full flex flex-col">
-        {/* Header & Filters */}
-        <PageHeader title="กระดานยุทธศาสตร์ 4 แกน" subtitle="Strategy Board & Tasks" action={
-            <div className="flex gap-3">
-                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                     <Filter className="w-4 h-4 text-slate-500" />
-                     <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
-                </div>
-                <button onClick={() => setHideDone(!hideDone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button>
-            </div>
-        } />
-        {/* Board */}
-        <div className="overflow-x-auto pb-4 flex-1 custom-scrollbar">
-          <div className="flex flex-col md:flex-row gap-4 min-w-full md:min-w-[1200px] h-full">
-            {['solver', 'principles', 'defender', 'expert', 'backoffice'].map((key) => (
-              <div key={key} className={`w-full md:w-1/5 bg-white rounded-2xl p-4 border border-slate-200 flex flex-col shadow-sm`}>
-                <div className="mb-3 pb-2 border-b border-slate-100">
-                    <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide truncate">{key.toUpperCase()}</h3>
-                    <p className="text-[10px] text-slate-500 line-clamp-1">{COL_DESCRIPTIONS[key]}</p>
-                </div>
-                <div className="space-y-3 overflow-y-auto max-h-[60vh] pr-1 custom-scrollbar flex-1">
-                  {groupedTasks[key]?.filter(t => (!hideDone || t.status !== 'Done') && (filterTag === 'All' || t.tag === filterTag)).map(task => (
-                    <div key={task.id} onClick={() => setEditingTask(task)} className={`bg-white p-4 rounded-xl shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-400 transition-all cursor-pointer relative`}>
-                      <div className="flex justify-between items-start mb-3"><span className="text-[9px] font-bold uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{task.tag}</span><StatusBadge status={task.status} /></div>
-                      <h4 className="text-sm font-bold text-slate-800 mb-2 leading-snug">{task.title}</h4>
-                      {task.deadline && <div className="flex items-center gap-1.5 text-[10px] text-red-500 font-bold mt-3"><Clock className="w-3 h-3" /> {task.deadline}</div>}
-                    </div>
-                  ))}
-                  <button onClick={() => addNewTask(key)} className="w-full py-3 text-sm text-slate-400 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-bold"><Plus className="w-4 h-4" /> เพิ่มงาน</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {editingTask && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
-                 <button onClick={() => setEditingTask(null)} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
-                 <h3 className="font-bold text-xl text-slate-800 mb-6">แก้ไขงาน</h3>
-                 <div className="space-y-4">
-                    <input type="text" value={editingTask.title} onChange={e=>setEditingTask({...editingTask, title:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" />
-                    {/* Hybrid Tag Input */}
-                    <div>
-                        <input type="text" value={editingTask.tag} onChange={e=>setEditingTask({...editingTask, tag:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="Tag..." />
-                        <div className="mt-2 flex flex-wrap gap-2">{PRESET_TAGS.slice(0,5).map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag:t})} className="text-[10px] bg-slate-100 px-2 py-1 rounded border hover:bg-blue-100">{t}</button>)}</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <select value={editingTask.status} onChange={e=>setEditingTask({...editingTask, status:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm"><option>To Do</option><option>In Progress</option><option>Done</option></select>
-                        <input type="date" value={editingTask.deadline} onChange={e=>setEditingTask({...editingTask, deadline:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm" />
-                    </div>
-                    <div className="flex justify-between pt-4">
-                        <button onClick={async()=>{if(confirm("ลบ?")){setIsGlobalLoading(true); await deleteDoc(doc(db,"tasks",editingTask.id)); logActivity("Delete Task", editingTask.title); setIsGlobalLoading(false); setEditingTask(null);}}} className="text-red-500 text-sm font-bold flex items-center gap-1"><Trash2 className="w-4 h-4"/> ลบ</button>
-                        <button onClick={()=>saveTaskChange(editingTask)} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold shadow hover:bg-blue-700">บันทึก</button>
-                    </div>
-                 </div>
-            </div>
-        </div>}
-      </div>
-  );
-
-  const renderMasterPlan = () => (
-    <div className="space-y-6">
-        <PageHeader title="แผนงานหลัก (Master Plan)" subtitle="Long-term Roadmap" action={<button onClick={addPlan} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition flex items-center gap-2"><Plus className="w-4 h-4" /> สร้างแผนใหม่</button>} />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {plans.map((plan) => {
-                const sortedItems = [...(plan.items || [])].map((item, idx) => ({ ...item, originalIndex: idx })).sort((a, b) => Number(a.completed) - Number(b.completed));
-                return (
-                    <div key={plan.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition">
-                        <div className="flex justify-between items-start mb-6">
-                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => editPlanTitle(plan)}><h3 className="font-bold text-lg text-slate-800">{plan.title}</h3><Edit2 className="w-4 h-4 text-slate-300 hover:text-blue-600" /></div>
-                            <button onClick={async () => { if(confirm("ลบแผนนี้?")) { await deleteDoc(doc(db, "plans", plan.id)); logActivity("Delete Plan", plan.title); }}} className="text-slate-300 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                        <div className="mb-6"><div className="w-full bg-slate-100 rounded-full h-2.5"><div className="bg-blue-600 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${plan.progress || 0}%` }}></div></div></div>
-                        <ul className="space-y-1">
-                            {sortedItems.map((item, idx) => (
-                                <li key={idx} className={`flex items-center justify-between gap-3 text-sm p-2 rounded-lg hover:bg-slate-50 transition ${item.completed ? 'opacity-50' : ''}`}>
-                                    <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => togglePlanItem(plan.id, item.originalIndex, plan.items)}>
-                                        {item.completed ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Circle className="w-5 h-5 text-slate-300" />}
-                                        <span className={item.completed ? "line-through" : ""}>{item.text}</span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={(e) => { e.stopPropagation(); editPlanItem(plan.id, item.originalIndex, plan.items); }}><Edit2 className="w-3.5 h-3.5 text-slate-400 hover:text-blue-600" /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); removePlanItem(plan.id, item.originalIndex, plan.items); }}><Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-600" /></button>
-                                    </div>
-                                </li>
-                            ))}
-                            <li className="pt-2"><button onClick={() => openFormModal("เพิ่มรายการ", [{key:'text', label:'รายการ'}], async(d)=> { const newItems=[...(plan.items||[]), {text:d.text, completed:false}]; await updateDoc(doc(db,"plans",plan.id), {items:newItems, progress:Math.round((newItems.filter(i=>i.completed).length/newItems.length)*100)}); logActivity("Add Plan Item", d.text); })} className="w-full text-center text-xs text-blue-600 font-bold hover:bg-blue-50 py-2 rounded-lg transition border border-dashed border-blue-200">+ เพิ่มรายการ</button></li>
-                        </ul>
-                    </div>
-                )
-            })}
-        </div>
-    </div>
-  );
-
-  const renderRapidResponse = () => (
-    <div className="space-y-6">
-        <PageHeader title="ปฏิบัติการด่วน" subtitle="Agile Response Unit" action={<button onClick={createUrgentCase} className="bg-red-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-red-700 shadow-lg flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> เปิดเคสด่วน</button>} />
-        <div className="flex flex-col lg:flex-row gap-6">
-            <div className={`lg:w-1/3 bg-white rounded-2xl border border-slate-200 shadow-sm h-fit overflow-hidden`}>
-                <div className="p-4 bg-slate-50 font-bold text-slate-800 flex items-center gap-2 cursor-pointer" onClick={()=>setIsSopOpen(!isSopOpen)}><FileText className="w-5 h-5"/> SOP Guide (คู่มือ) <ChevronDown className={`ml-auto transform ${isSopOpen?'rotate-180':''}`}/></div>
-                {isSopOpen && <div className="p-6 space-y-3 text-sm text-slate-600">{SOP_GUIDE.map((s,i)=><p key={i}>{s}</p>)}</div>}
-            </div>
-            <div className="lg:w-2/3 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {urgentTasks.map(task => (
-                        <div key={task.id} className="bg-white p-5 rounded-2xl border-l-[6px] border-red-500 shadow-sm hover:shadow-md cursor-pointer" onClick={() => setUrgentModal(task)}>
-                            <div className="flex justify-between mb-3"><span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded animate-pulse">URGENT</span><StatusBadge status={task.status} /></div>
-                            <h3 className="font-bold text-slate-800 mb-3 text-lg">{task.title}</h3>
-                            {task.deadline && <p className="text-xs text-slate-500 mb-4 flex gap-1"><Clock className="w-3.5 h-3.5"/> {task.deadline}</p>}
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-        {urgentModal && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-lg p-6 relative">
-                <button onClick={()=>setUrgentModal(null)} className="absolute top-4 right-4"><X className="w-6 h-6 text-slate-400"/></button>
-                <h3 className="text-xl font-bold text-red-600 mb-6">จัดการเคสด่วน</h3>
-                <div className="space-y-4">
-                    <input type="text" value={urgentModal.title} onChange={e=>setUrgentModal({...urgentModal, title:e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 font-bold" />
-                    <div className="bg-slate-50 p-4 rounded-xl border"><h4 className="font-bold mb-3">Checklist</h4>{urgentModal.sop?.map((s,i)=><div key={i} className="flex gap-3 p-2 cursor-pointer" onClick={()=>{const newSop=[...urgentModal.sop]; newSop[i].done=!newSop[i].done; setUrgentModal({...urgentModal, sop:newSop})}}><div className={`w-5 h-5 rounded border flex items-center justify-center ${s.done?'bg-green-500 text-white':'bg-white'}`}>{s.done&&<CheckCircle2 className="w-3.5 h-3.5"/>}</div><span className={s.done?'line-through text-slate-400':''}>{s.text}</span></div>)}</div>
-                    <div className="flex justify-between mt-6"><button onClick={async()=>{if(confirm("ปิดเคส?")){await deleteDoc(doc(db,"tasks",urgentModal.id)); logActivity("Close Case", urgentModal.title); setUrgentModal(null);}}} className="text-red-500 font-bold">ลบเคส</button><button onClick={()=>saveUrgentCase(urgentModal)} className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold">บันทึก</button></div>
-                </div>
-            </div>
-        </div>}
-    </div>
-  );
-
-  const renderAssets = () => (
-      <div className="space-y-6">
-          <PageHeader title="คลังอาวุธ" subtitle="Media & Channels" />
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 rounded-2xl shadow-lg text-white flex justify-between items-center">
-              <div><h3 className="text-2xl font-black mb-2">Google Drive</h3><p className="text-blue-100">พื้นที่เก็บไฟล์ต้นฉบับ</p></div>
-              <a href="https://drive.google.com" target="_blank" rel="noreferrer" className="bg-white text-blue-700 px-6 py-3 rounded-xl font-bold shadow-xl flex items-center gap-2"><ExternalLink className="w-5 h-5"/> เปิด Drive</a>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <div className="flex justify-between mb-6"><h3 className="font-bold text-lg">Channels</h3><button onClick={addChannel} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold">+ เพิ่ม</button></div>
-                  <div className="space-y-3">{channels.map(c=><div key={c.id} className="flex justify-between p-4 border rounded-xl hover:shadow-md cursor-pointer" onClick={()=>updateChannel(c)}><div><p className="font-bold text-slate-700">{c.name}</p><span className="text-xs bg-slate-100 px-2 py-0.5 rounded">{c.type}</span></div><button onClick={(e)=>{e.stopPropagation(); deleteChannel(c.id)}}><Trash2 className="w-5 h-5 text-slate-300 hover:text-red-500"/></button></div>)}</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <div className="flex justify-between mb-6"><h3 className="font-bold text-lg">Media List</h3><button onClick={addMedia} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold">+ เพิ่ม</button></div>
-                  <div className="space-y-3 overflow-y-auto max-h-[500px]">{media.map(c=><div key={c.id} className="flex justify-between p-4 border rounded-xl hover:shadow-md"><div><p className="font-bold text-slate-700">{c.name}</p><div className="text-xs text-slate-500 mt-1 flex gap-2"><span>📞 {c.phone}</span><span>LINE: {c.line}</span></div></div><div className="flex gap-2"><button onClick={()=>editMedia(c)}><Edit2 className="w-4 h-4 text-slate-300 hover:text-blue-600"/></button><button onClick={()=>deleteMedia(c.id)}><Trash2 className="w-4 h-4 text-slate-300 hover:text-red-500"/></button></div></div>)}</div>
-              </div>
-          </div>
-      </div>
-  );
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
       <LoadingOverlay isOpen={isGlobalLoading} />
       <FormModal {...formModalConfig} onClose={() => setFormModalConfig(prev => ({ ...prev, isOpen: false }))} />
-      <SearchModal isOpen={isSearchOpen} onClose={()=>setIsSearchOpen(false)} data={{tasks, media, channels}} onNavigate={navigateTo} />
       <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} user={currentUser} userProfile={userProfile} onUpdate={handleUpdateProfile} />
       
       <aside className={`bg-slate-900 text-white w-full md:w-64 flex-shrink-0 transition-all duration-300 fixed md:sticky top-0 z-30 h-screen ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} flex flex-col`}>
