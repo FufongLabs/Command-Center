@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from './firebaseConfig'; 
 import { 
   collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, 
-  query, orderBy, writeBatch, setDoc, getDoc, serverTimestamp, where 
+  query, orderBy, writeBatch, setDoc, getDoc, serverTimestamp 
 } from 'firebase/firestore';
 import { 
   onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, updateProfile 
@@ -11,11 +11,31 @@ import {
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, Eye, FileText, Share2, Plus, 
-  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, Search, Shield, FileClock, Check
+  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag
 } from 'lucide-react';
 
-// --- GLOBAL CONSTANTS ---
+// --- GLOBAL CONSTANTS (UPDATED) ---
 const PRESET_TAGS = ["Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"];
+
+// 1. New Asset Types (ใช้ร่วมกันทั้ง Channels และ Media)
+const ASSET_TYPES = [
+  "Own media", 
+  "Partner", 
+  "NEWS Paper", 
+  "NEWS Website", 
+  "Fan Club (own)"
+];
+
+// 2. New Task Statuses
+const TASK_STATUSES = [
+  "To Do", 
+  "In Progress", 
+  "In Review", 
+  "Done", 
+  "Idea", 
+  "Waiting list", 
+  "Canceled"
+];
 
 const DEFAULT_SOP = [
   { text: "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)", done: false },
@@ -61,7 +81,7 @@ const formatDate = (isoString) => {
 const LoadingOverlay = ({ isOpen, message = "กำลังทำงาน..." }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-[100] animate-fadeIn">
+    <div className="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-[2000] animate-fadeIn">
       <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-3" />
       <p className="text-slate-600 font-bold animate-pulse">{message}</p>
     </div>
@@ -79,7 +99,7 @@ const SearchModal = ({ isOpen, onClose, data, onNavigate }) => {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[110] p-4 pt-20 animate-fadeIn" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[1500] p-4 pt-20 animate-fadeIn" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b border-slate-100 flex items-center gap-3">
            <Search className="w-6 h-6 text-slate-400" />
@@ -133,7 +153,7 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1200] p-4 animate-fadeIn overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
         <button onClick={onClose} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full transition"><X className="w-5 h-5 text-slate-400" /></button>
         <h3 className="text-xl font-bold text-slate-800 mb-6 pr-8">{title}</h3>
@@ -146,13 +166,24 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                 </label>
                 {field.type === 'select' ? (
                    <div className="relative">
-                       <select value={formData[field.key]} onChange={(e) => setFormData({...formData, [field.key]: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-slate-50 focus:bg-white focus:border-blue-500 outline-none appearance-none font-medium text-slate-700 transition-all">
+                       <select 
+                          value={formData[field.key]} 
+                          onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                          className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-slate-50 focus:bg-white focus:border-blue-500 outline-none appearance-none font-medium text-slate-700 transition-all"
+                       >
                           {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                        </select>
                        <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none"/>
                    </div>
                 ) : (
-                   <input type={field.type || 'text'} value={formData[field.key]} onChange={(e) => setFormData({...formData, [field.key]: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-700 transition-all placeholder:text-slate-300" placeholder={field.placeholder || ''} list={field.type === 'datalist' ? `list-${field.key}` : undefined} />
+                   <input 
+                      type={field.type || 'text'}
+                      value={formData[field.key]}
+                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                      className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-700 transition-all placeholder:text-slate-300"
+                      placeholder={field.placeholder || ''}
+                      list={field.type === 'datalist' ? `list-${field.key}` : undefined}
+                   />
                 )}
                 {field.type === 'datalist' && <datalist id={`list-${field.key}`}>{field.options.map(opt => <option key={opt} value={opt} />)}</datalist>}
                 {field.key === 'tag' && <div className="mt-3 flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100"><p className="text-[10px] text-slate-400 w-full mb-1">เลือก Tag ที่ใช้บ่อย:</p>{PRESET_TAGS.map(tag => <button key={tag} onClick={() => setFormData({...formData, tag: tag})} className={`text-[10px] px-2.5 py-1.5 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}>{tag}</button>)}</div>}
@@ -175,13 +206,27 @@ const PageHeader = ({ title, subtitle, action }) => (
   </div>
 );
 
+// --- UPDATED STATUS BADGE (New Colors) ---
 const StatusBadge = ({ status }) => {
-  const styles = { "To Do": "bg-slate-100 text-slate-600 border-slate-200", "In Progress": "bg-blue-50 text-blue-600 border-blue-100", "In Review": "bg-amber-50 text-amber-600 border-amber-100", "Done": "bg-emerald-50 text-emerald-600 border-emerald-100", "Urgent": "bg-red-50 text-red-600 border-red-100" };
+  const styles = {
+    "To Do": "bg-slate-100 text-slate-600 border-slate-200",
+    "In Progress": "bg-blue-50 text-blue-600 border-blue-100", 
+    "In Review": "bg-purple-50 text-purple-600 border-purple-100", 
+    "Done": "bg-emerald-50 text-emerald-600 border-emerald-100", 
+    "Idea": "bg-yellow-50 text-yellow-600 border-yellow-100",
+    "Waiting list": "bg-orange-50 text-orange-600 border-orange-100",
+    "Canceled": "bg-gray-50 text-gray-400 border-gray-200 line-through"
+  };
   return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
 const StatusDonutChart = ({ stats }) => {
-  const total = stats.total || 1; const donePercent = (stats.done / total) * 100; const progressPercent = (stats.progress / total) * 100; const circumference = 2 * Math.PI * 40;
+  const total = stats.total || 1; 
+  const donePercent = (stats.done / total) * 100;
+  const progressPercent = (stats.progress / total) * 100;
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+
   return (
     <div className="relative w-48 h-48 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
@@ -190,7 +235,10 @@ const StatusDonutChart = ({ stats }) => {
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
-      <div className="absolute text-center"><span className="text-4xl font-black text-slate-800">{stats.total}</span><span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TASKS</span></div>
+      <div className="absolute text-center">
+        <span className="text-4xl font-black text-slate-800">{stats.total}</span>
+        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TASKS</span>
+      </div>
     </div>
   );
 };
@@ -249,7 +297,7 @@ const ProfileModal = ({ isOpen, onClose, user, userProfile, onUpdate }) => {
   const handleSave = async () => { await onUpdate(name, photo, phone); onClose(); };
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[120] p-4 animate-fadeIn">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1200] p-4 animate-fadeIn">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
         <div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-slate-800">แก้ไขข้อมูลส่วนตัว</h3><button onClick={onClose}><X className="w-6 h-6 text-slate-400" /></button></div>
         <div className="space-y-4">
@@ -272,7 +320,6 @@ export default function TeamTaweeApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Data
   const [tasks, setTasks] = useState([]);
   const [plans, setPlans] = useState([]);
   const [media, setMedia] = useState([]);
@@ -310,7 +357,8 @@ export default function TeamTaweeApp() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        const docSnap = await getDoc(doc(db, "user_profiles", user.uid));
+        const docRef = doc(db, "user_profiles", user.uid);
+        const docSnap = await getDoc(docRef);
         if (docSnap.exists()) setUserProfile(docSnap.data());
       } else setUserProfile(null);
       setAuthLoading(false);
@@ -344,11 +392,11 @@ export default function TeamTaweeApp() {
   const saveTaskChange = async (task) => { if(!task.id)return; setIsGlobalLoading(true); try{ await updateDoc(doc(db,"tasks",task.id), {title:task.title||"", status:task.status||"To Do", tag:task.tag||"", role:task.role||"", link:task.link||"", deadline:task.deadline||"", updatedBy:currentUser.displayName, updatedAt:new Date().toISOString()}); logActivity("Edit Task", task.title); setEditingTask(null); }catch(e){alert(e.message);} setIsGlobalLoading(false); };
   const saveUrgentCase = async (task) => { if(!task.id)return; setIsGlobalLoading(true); try{ await updateDoc(doc(db,"tasks",task.id), {title:task.title||"", status:task.status||"To Do", link:task.link||"", sop:task.sop||[], updatedBy:currentUser.displayName, updatedAt:new Date().toISOString()}); logActivity("Update Urgent", task.title); setUrgentModal(null); }catch(e){alert(e.message);} setIsGlobalLoading(false); };
   
-  const addNewTask = (key) => openFormModal("เพิ่มงานใหม่", [{key:'title', label:'ชื่องาน'}, {key:'tag', label:'Tag'}, {key:'role', label:'ผู้รับผิดชอบ'}, {key:'deadline', label:'กำหนดส่ง', type:'date'}, {key:'link', label:'Link ผลงาน'}], async(d)=>{ await addDoc(collection(db,"tasks"), {...d, status:"To Do", link:d.link||"", columnKey:key, createdBy:currentUser.displayName, createdAt:new Date().toISOString()}); logActivity("Add Task", d.title); });
-  const addChannel = () => openFormModal("เพิ่มช่องทาง", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options:['Own','Partner','Web']}, {key:'url', label:'URL'}], async(d)=>{ await addDoc(collection(db,"channels"), {...d, count:0}); logActivity("Add Channel", d.name); });
-  const updateChannel = (c) => openFormModal("แก้ไขช่องทาง", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options:['Own','Partner','Web'], defaultValue:c.type}, {key:'url', label:'URL', defaultValue:c.url}], async(d)=>{ await updateDoc(doc(db,"channels",c.id), d); logActivity("Edit Channel", c.name); });
-  const addMedia = () => openFormModal("เพิ่มสื่อ", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options:['TV','Online','Group']}, {key:'phone', label:'เบอร์'}, {key:'line', label:'Line'}], async(d)=>{ await addDoc(collection(db,"media"), {...d, active:true}); logActivity("Add Media", d.name); });
-  const editMedia = (c) => openFormModal("แก้ไขสื่อ", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options:['TV','Online','Group'], defaultValue:c.type}, {key:'phone', label:'เบอร์', defaultValue:c.phone}, {key:'line', label:'Line', defaultValue:c.line}], async(d)=>{ await updateDoc(doc(db,"media",c.id), d); logActivity("Edit Media", c.name); });
+  const addNewTask = (key) => openFormModal("เพิ่มงานใหม่", [{key:'title', label:'ชื่องาน'}, {key:'tag', label:'Tag'}, {key:'role', label:'ผู้รับผิดชอบ'}, {key:'status', label:'สถานะ', type:'select', options: TASK_STATUSES}, {key:'deadline', label:'กำหนดส่ง', type:'date'}, {key:'link', label:'Link ผลงาน'}], async(d)=>{ await addDoc(collection(db,"tasks"), {...d, status:d.status||"To Do", link:d.link||"", columnKey:key, createdBy:currentUser.displayName, createdAt:new Date().toISOString()}); logActivity("Add Task", d.title); });
+  const addChannel = () => openFormModal("เพิ่มช่องทาง", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES}, {key:'url', label:'URL'}], async(d)=>{ await addDoc(collection(db,"channels"), {...d, count:0}); logActivity("Add Channel", d.name); });
+  const updateChannel = (c) => openFormModal("แก้ไขช่องทาง", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:c.type}, {key:'url', label:'URL', defaultValue:c.url}], async(d)=>{ await updateDoc(doc(db,"channels",c.id), d); logActivity("Edit Channel", c.name); });
+  const addMedia = () => openFormModal("เพิ่มสื่อ", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES}, {key:'phone', label:'เบอร์'}, {key:'line', label:'Line'}], async(d)=>{ await addDoc(collection(db,"media"), {...d, active:true}); logActivity("Add Media", d.name); });
+  const editMedia = (c) => openFormModal("แก้ไขสื่อ", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:c.type}, {key:'phone', label:'เบอร์', defaultValue:c.phone}, {key:'line', label:'Line', defaultValue:c.line}], async(d)=>{ await updateDoc(doc(db,"media",c.id), d); logActivity("Edit Media", c.name); });
   const addPublishedLink = () => openFormModal("เพิ่มลิงก์ข่าว", [{key:'title', label:'หัวข้อ'}, {key:'url', label:'URL'}, {key:'platform', label:'Platform'}], async(d)=>{ await addDoc(collection(db,"published_links"), {...d, createdBy:currentUser.displayName, createdAt:serverTimestamp()}); logActivity("Add Link", d.title); });
   
   const deleteLink = async (id) => { if(confirm("ลบ?")) { await deleteDoc(doc(db,"published_links",id)); logActivity("Delete Link", id); }};
@@ -392,7 +440,12 @@ export default function TeamTaweeApp() {
     switch (activeTab) {
       case 'dashboard':
         const taskStats = { done: 0, pending: 0, total: 0, progress: 0, todo: 0 };
-        tasks.forEach(t => { if(t.status==='Done') taskStats.done++; else if(t.status==='In Progress') { taskStats.progress++; taskStats.pending++; } else { taskStats.todo++; taskStats.pending++; } taskStats.total++; });
+        tasks.forEach(t => { 
+          if(t.status==='Done') taskStats.done++; 
+          else if(t.status==='In Progress' || t.status==='In Review') { taskStats.progress++; taskStats.pending++; } 
+          else if(t.status!=='Canceled') { taskStats.todo++; taskStats.pending++; }
+          if(t.status!=='Canceled') taskStats.total++; 
+        });
         return (
           <div className="space-y-6 animate-fadeIn">
              <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" action={
@@ -503,8 +556,8 @@ export default function TeamTaweeApp() {
   const renderStrategy = () => (
       <div className="h-full flex flex-col">
         <PageHeader title="กระดานยุทธศาสตร์ 4 แกน" subtitle="Strategy Board & Tasks" action={<div className="flex gap-3"><div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200"><Filter className="w-4 h-4 text-slate-500" /><select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select></div><button onClick={() => setHideDone(!hideDone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button></div>} />
-        <div className="overflow-x-auto pb-4 flex-1 custom-scrollbar"><div className="flex flex-col md:flex-row gap-4 min-w-full md:min-w-[1200px] h-full">{['solver', 'principles', 'defender', 'expert', 'backoffice'].map((key) => (<div key={key} className={`w-full md:w-1/5 bg-white rounded-2xl p-4 border border-slate-200 flex flex-col shadow-sm`}><div className="mb-3 pb-2 border-b border-slate-100"><h3 className="font-black text-slate-800 text-sm uppercase tracking-wide truncate">{COLUMN_LABELS[key]}</h3><p className="text-[10px] text-slate-500 line-clamp-1">{COL_DESCRIPTIONS[key]}</p></div><div className="space-y-3 overflow-y-auto max-h-[60vh] pr-1 custom-scrollbar flex-1">{groupedTasks[key]?.filter(t => (!hideDone || t.status !== 'Done') && (filterTag === 'All' || t.tag === filterTag)).map(task => (<div key={task.id} onClick={() => setEditingTask(task)} className={`bg-white p-4 rounded-xl shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-400 transition-all cursor-pointer relative`}><div className="flex justify-between items-start mb-3"><span className="text-[9px] font-bold uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{task.tag}</span><StatusBadge status={task.status} /></div><h4 className="text-sm font-bold text-slate-800 mb-2 leading-snug">{task.title}</h4>{task.deadline && <div className="flex items-center gap-1.5 text-[10px] text-red-500 font-bold mt-3"><Clock className="w-3 h-3" /> {task.deadline}</div>}<div className="mt-2 pt-2 border-t border-slate-50 text-[9px] text-slate-400 flex flex-col gap-0.5"><span className="flex items-center gap-1"><User className="w-3 h-3" /> {task.createdBy}</span>{task.updatedBy && <span className="flex items-center gap-1 text-blue-400"><Edit2 className="w-3 h-3" /> {formatDate(task.updatedAt)}</span>}</div></div>))}<button onClick={() => addNewTask(key)} className="w-full py-3 text-sm text-slate-400 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-bold"><Plus className="w-4 h-4" /> เพิ่มงาน</button></div></div>))}</div></div>
-        {editingTask && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn"><div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative"><button onClick={() => setEditingTask(null)} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button><h3 className="font-bold text-xl text-slate-800 mb-6">แก้ไขงาน</h3><div className="space-y-4"><input type="text" value={editingTask.title} onChange={e=>setEditingTask({...editingTask, title:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" /><div><input type="text" value={editingTask.tag} onChange={e=>setEditingTask({...editingTask, tag:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="Tag..." /><div className="mt-2 flex flex-wrap gap-2">{PRESET_TAGS.slice(0,5).map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag:t})} className="text-[10px] bg-slate-100 px-2 py-1 rounded border hover:bg-blue-100">{t}</button>)}</div></div>{/* Role */}<input type="text" value={editingTask.role||""} onChange={e=>setEditingTask({...editingTask, role:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm" placeholder="ผู้รับผิดชอบ" /><div className="grid grid-cols-2 gap-4"><select value={editingTask.status} onChange={e=>setEditingTask({...editingTask, status:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm"><option>To Do</option><option>In Progress</option><option>Done</option></select><input type="date" value={editingTask.deadline} onChange={e=>setEditingTask({...editingTask, deadline:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm" /></div><input type="text" value={editingTask.link} onChange={e=>setEditingTask({...editingTask, link:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="Link..." /><div className="flex justify-between pt-4"><button onClick={async()=>{if(confirm("ลบ?")){setIsGlobalLoading(true); await deleteDoc(doc(db,"tasks",editingTask.id)); logActivity("Delete Task", editingTask.title); setIsGlobalLoading(false); setEditingTask(null);}}} className="text-red-500 text-sm font-bold flex items-center gap-1"><Trash2 className="w-4 h-4"/> ลบ</button><button onClick={()=>saveTaskChange(editingTask)} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold shadow hover:bg-blue-700">บันทึก</button></div></div></div></div>}
+        <div className="overflow-x-auto pb-4 flex-1 custom-scrollbar"><div className="flex flex-col md:flex-row gap-4 min-w-full md:min-w-[1200px] h-full">{['solver', 'principles', 'defender', 'expert', 'backoffice'].map((key) => (<div key={key} className={`w-full md:w-1/5 bg-white rounded-2xl p-4 border border-slate-200 flex flex-col shadow-sm`}><div className="mb-3 pb-2 border-b border-slate-100"><h3 className="font-black text-slate-800 text-sm uppercase tracking-wide truncate">{COLUMN_LABELS[key]}</h3><p className="text-[10px] text-slate-500 line-clamp-1">{COL_DESCRIPTIONS[key]}</p></div><div className="space-y-3 overflow-y-auto max-h-[60vh] pr-1 custom-scrollbar flex-1">{groupedTasks[key]?.filter(t => (!hideDone || t.status !== 'Done') && (filterTag === 'All' || t.tag === filterTag)).map(task => (<div key={task.id} onClick={() => setEditingTask(task)} className={`bg-white p-4 rounded-xl shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-400 transition-all cursor-pointer relative`}><div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-bold uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-md`}>{task.tag}</span><StatusBadge status={task.status} /></div><h4 className="text-sm font-bold text-slate-800 mb-2 leading-snug">{task.title}</h4>{task.deadline && <div className="flex items-center gap-1.5 text-[10px] text-red-500 font-bold mt-3"><Clock className="w-3 h-3" /> {task.deadline}</div>}<div className="mt-2 pt-2 border-t border-slate-50 text-[9px] text-slate-400 flex flex-col gap-0.5"><span className="flex items-center gap-1"><User className="w-3 h-3" /> {task.role || task.createdBy}</span>{task.updatedBy && <span className="flex items-center gap-1 text-blue-400"><Edit2 className="w-3 h-3" /> {formatDate(task.updatedAt)}</span>}</div></div>))}<button onClick={() => addNewTask(key)} className="w-full py-3 text-sm text-slate-400 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-bold"><Plus className="w-4 h-4" /> เพิ่มงาน</button></div></div>))}</div></div>
+        {editingTask && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn"><div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative"><button onClick={() => setEditingTask(null)} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button><h3 className="font-bold text-xl text-slate-800 mb-6">แก้ไขงาน</h3><div className="space-y-4"><input type="text" value={editingTask.title} onChange={e=>setEditingTask({...editingTask, title:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" /><div><input type="text" value={editingTask.tag} onChange={e=>setEditingTask({...editingTask, tag:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="Tag..." /><div className="mt-2 flex flex-wrap gap-2">{PRESET_TAGS.slice(0,5).map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag:t})} className="text-[10px] bg-slate-100 px-2 py-1 rounded border hover:bg-blue-100">{t}</button>)}</div></div><input type="text" value={editingTask.role||""} onChange={e=>setEditingTask({...editingTask, role:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="ผู้รับผิดชอบ" /><div className="grid grid-cols-2 gap-4"><select value={editingTask.status} onChange={e=>setEditingTask({...editingTask, status:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm"><option>To Do</option><option>In Progress</option><option>In Review</option><option>Done</option><option>Idea</option><option>Waiting list</option><option>Canceled</option></select><input type="date" value={editingTask.deadline} onChange={e=>setEditingTask({...editingTask, deadline:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm" /></div><input type="text" value={editingTask.link} onChange={e=>setEditingTask({...editingTask, link:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="Link..." /><div className="flex justify-between pt-4"><button onClick={async()=>{if(confirm("ลบ?")){setIsGlobalLoading(true); await deleteDoc(doc(db,"tasks",editingTask.id)); logActivity("Delete Task", editingTask.title); setIsGlobalLoading(false); setEditingTask(null);}}} className="text-red-500 text-sm font-bold flex items-center gap-1"><Trash2 className="w-4 h-4"/> ลบ</button><button onClick={()=>saveTaskChange(editingTask)} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold shadow hover:bg-blue-700">บันทึก</button></div></div></div></div>}
       </div>
   );
 
@@ -528,7 +581,7 @@ export default function TeamTaweeApp() {
                                         {item.completed ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Circle className="w-5 h-5 text-slate-300" />}
                                         <span className={item.completed ? "line-through" : ""}>{item.text}</span>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 relative z-10">
                                         <button onClick={(e) => { e.stopPropagation(); editPlanItem(plan.id, item.originalIndex, plan.items); }}><Edit2 className="w-3.5 h-3.5 text-slate-400 hover:text-blue-600" /></button>
                                         <button onClick={(e) => { e.stopPropagation(); removePlanItem(plan.id, item.originalIndex, plan.items); }}><Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-red-600" /></button>
                                     </div>
