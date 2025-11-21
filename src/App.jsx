@@ -11,7 +11,7 @@ import {
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, Eye, FileText, Share2, Plus, 
-  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag
+  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, Search, Shield, FileClock
 } from 'lucide-react';
 
 // --- GLOBAL CONSTANTS ---
@@ -75,9 +75,9 @@ const SearchModal = ({ isOpen, onClose, data, onNavigate }) => {
   if (!isOpen) return null;
 
   const results = query.length < 2 ? [] : [
-    ...data.tasks.filter(t => t.title.toLowerCase().includes(query.toLowerCase())).map(t => ({ ...t, type: 'Task', label: t.title, sub: t.status })),
-    ...data.media.filter(m => m.name.toLowerCase().includes(query.toLowerCase())).map(m => ({ ...m, type: 'Media', label: m.name, sub: m.phone })),
-    ...data.channels.filter(c => c.name.toLowerCase().includes(query.toLowerCase())).map(c => ({ ...c, type: 'Channel', label: c.name, sub: c.url })),
+    ...(data.tasks || []).filter(t => t.title?.toLowerCase().includes(query.toLowerCase())).map(t => ({ ...t, type: 'Task', label: t.title, sub: t.status })),
+    ...(data.media || []).filter(m => m.name?.toLowerCase().includes(query.toLowerCase())).map(m => ({ ...m, type: 'Media', label: m.name, sub: m.phone })),
+    ...(data.channels || []).filter(c => c.name?.toLowerCase().includes(query.toLowerCase())).map(c => ({ ...c, type: 'Channel', label: c.name, sub: c.url })),
   ];
 
   return (
@@ -164,10 +164,11 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                       onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
                       className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-700 transition-all placeholder:text-slate-300"
                       placeholder={field.placeholder || ''}
+                      list={field.type === 'datalist' ? `list-${field.key}` : undefined}
                    />
                 )}
-                {/* Simplified Tag Input (Fixes video issue) */}
-                {field.key === 'tag' && <div className="mt-3 flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100"><p className="text-[10px] text-slate-400 w-full mb-1">เลือก Tag:</p>{PRESET_TAGS.map(tag => <button key={tag} onClick={() => setFormData({...formData, tag: tag})} className={`text-[10px] px-2.5 py-1.5 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}>{tag}</button>)}</div>}
+                {field.type === 'datalist' && <datalist id={`list-${field.key}`}>{field.options.map(opt => <option key={opt} value={opt} />)}</datalist>}
+                {field.key === 'tag' && <div className="mt-3 flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100"><p className="text-[10px] text-slate-400 w-full mb-1">เลือก Tag ที่ใช้บ่อย:</p>{PRESET_TAGS.map(tag => <button key={tag} onClick={() => setFormData({...formData, tag: tag})} className={`text-[10px] px-2.5 py-1.5 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}>{tag}</button>)}</div>}
              </div>
            ))}
         </div>
@@ -320,7 +321,7 @@ export default function TeamTaweeApp() {
   const [isDistOpen, setIsDistOpen] = useState(false); 
   const [isSopOpen, setIsSopOpen] = useState(false); 
 
-  // BACK BUTTON FIX
+  // BACK BUTTON FIX & HISTORY
   useEffect(() => {
     const handlePopState = (event) => { if (event.state?.tab) setActiveTab(event.state.tab); else setActiveTab('dashboard'); };
     window.addEventListener('popstate', handlePopState);
@@ -347,24 +348,31 @@ export default function TeamTaweeApp() {
 
   useEffect(() => {
     if (!currentUser) return;
+    
+    // 1. Define Unsubscribe Functions
+    let unsubLinks = () => {};
+    let unsubUsers = () => {};
+    let unsubLogs = () => {};
+
     const unsubTasks = onSnapshot(collection(db, "tasks"), (s) => setTasks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubPlans = onSnapshot(collection(db, "plans"), (s) => setPlans(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubMedia = onSnapshot(collection(db, "media"), (s) => setMedia(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubChannels = onSnapshot(collection(db, "channels"), (s) => setChannels(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    // Fix: Try-catch for missing collections
+    
+    // Safe Try-Catch for potentially missing collections
     try {
-      const unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-      let unsubUsers = () => {}, unsubLogs = () => {};
-      if (userProfile?.role === 'Admin') {
+      unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    } catch(e) { console.log("Links init skipped"); }
+
+    if (userProfile?.role === 'Admin') {
+      try {
           unsubUsers = onSnapshot(collection(db, "user_profiles"), (s) => setUsersList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
           unsubLogs = onSnapshot(query(collection(db, "logs"), orderBy("createdAt", "desc")), (s) => setActivityLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-      }
-      setIsDataLoading(false);
-      return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); unsubUsers(); unsubLogs(); };
-    } catch(e) {
-      setIsDataLoading(false);
-      return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); };
+      } catch(e) { console.log("Admin init skipped"); }
     }
+
+    setIsDataLoading(false);
+    return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); unsubUsers(); unsubLogs(); };
   }, [currentUser, userProfile]);
 
   const logActivity = async (action, details) => { try { await addDoc(collection(db, "logs"), { action, details, user: currentUser.displayName || currentUser.email, createdAt: serverTimestamp() }); } catch(e) {} };
@@ -389,7 +397,6 @@ export default function TeamTaweeApp() {
   const toggleMediaActive = async (c) => updateDoc(doc(db,"media",c.id), {active:!c.active});
   const deleteMedia = async (id) => { if(confirm("ลบ?")) { await deleteDoc(doc(db,"media",id)); logActivity("Delete Media", id); }};
 
-  // Plan Actions
   const togglePlanItem = async (pid, idx, items) => { const newItems = [...items]; newItems[idx].completed = !newItems[idx].completed; const progress = Math.round((newItems.filter(i=>i.completed).length/newItems.length)*100); await updateDoc(doc(db,"plans",pid), {items:newItems, progress}); };
   const removePlanItem = async (pid, idx, items) => { if(confirm("ลบ?")) { const newItems = items.filter((_,i)=>i!==idx); const p = Math.round((newItems.filter(i=>i.completed).length/newItems.length)*100)||0; await updateDoc(doc(db,"plans",pid), {items:newItems, progress:p}); }};
   const editPlanItem = (pid, idx, items) => openFormModal("แก้รายการ", [{key:'text', label:'ข้อความ', defaultValue:items[idx].text}], async(d)=> { const newItems=[...items]; newItems[idx].text=d.text; await updateDoc(doc(db,"plans",pid), {items:newItems}); });
