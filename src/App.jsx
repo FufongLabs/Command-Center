@@ -11,11 +11,13 @@ import {
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, Eye, FileText, Share2, Plus, 
-  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, Search, Shield, FileClock
+  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, Search, Shield, FileClock, Check
 } from 'lucide-react';
 
 // --- GLOBAL CONSTANTS ---
 const PRESET_TAGS = ["Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"];
+const ASSET_TYPES = ["Own media", "Partner", "NEWS Paper", "NEWS Website", "Fan Club (own)"];
+const TASK_STATUSES = ["To Do", "In Progress", "In Review", "Done", "Idea", "Waiting list", "Canceled"];
 
 const DEFAULT_SOP = [
   { text: "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)", done: false },
@@ -49,10 +51,6 @@ const COLUMN_LABELS = {
     backoffice: "5. หลังบ้าน (Back Office)"
 };
 
-// Update Options
-const ASSET_TYPES = ["Own media", "Partner", "NEWS Paper", "NEWS Website", "Fan Club (own)"];
-const TASK_STATUSES = ["To Do", "In Progress", "In Review", "Done", "Idea", "Waiting list", "Canceled"];
-
 const formatDate = (isoString) => {
   if (!isoString) return "-";
   try {
@@ -77,9 +75,9 @@ const SearchModal = ({ isOpen, onClose, data, onNavigate }) => {
   if (!isOpen) return null;
 
   const results = query.length < 2 ? [] : [
-    ...(data.tasks || []).filter(t => t.title?.toLowerCase().includes(query.toLowerCase())).map(t => ({ ...t, type: 'Task', label: t.title, sub: t.status })),
-    ...(data.media || []).filter(m => m.name?.toLowerCase().includes(query.toLowerCase())).map(m => ({ ...m, type: 'Media', label: m.name, sub: m.phone })),
-    ...(data.channels || []).filter(c => c.name?.toLowerCase().includes(query.toLowerCase())).map(c => ({ ...c, type: 'Channel', label: c.name, sub: c.url })),
+    ...data.tasks.filter(t => t.title.toLowerCase().includes(query.toLowerCase())).map(t => ({ ...t, type: 'Task', label: t.title, sub: t.status })),
+    ...data.media.filter(m => m.name.toLowerCase().includes(query.toLowerCase())).map(m => ({ ...m, type: 'Media', label: m.name, sub: m.phone })),
+    ...data.channels.filter(c => c.name.toLowerCase().includes(query.toLowerCase())).map(c => ({ ...c, type: 'Channel', label: c.name, sub: c.url })),
   ];
 
   return (
@@ -203,23 +201,32 @@ const StatusBadge = ({ status }) => {
   return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
+// --- UPDATED GRAPH LOGIC ---
 const StatusDonutChart = ({ stats }) => {
+  // Logic: เขียว=Done, ฟ้า=In Progress+In Review, เทา=To Do+Idea+Waiting list
   const total = stats.total || 1; 
   const donePercent = (stats.done / total) * 100;
-  const progressPercent = (stats.progress / total) * 100;
+  const doingPercent = (stats.doing / total) * 100;
+  // const waitingPercent = (stats.waiting / total) * 100; // The rest is gray
+
   const circumference = 2 * Math.PI * 40;
 
   return (
     <div className="relative w-48 h-48 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-300" strokeWidth="12" strokeDasharray={`${circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" /> {/* Base Gray (Waiting) */}
+        
+        {/* Doing Layer (Blue) */}
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" 
+          strokeDasharray={`${(donePercent + doingPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
+        
+        {/* Done Layer (Green) */}
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" 
+          strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
       <div className="absolute text-center">
         <span className="text-4xl font-black text-slate-800">{stats.total}</span>
-        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TASKS</span>
+        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">ACTIVE TASKS</span>
       </div>
     </div>
   );
@@ -260,17 +267,7 @@ const LoginScreen = () => {
   );
 };
 
-const PendingScreen = ({ onLogout }) => (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 font-sans p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
-            <div className="mx-auto bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mb-4"><Lock className="w-8 h-8 text-amber-600"/></div>
-            <h2 className="text-xl font-bold text-slate-800 mb-2">รอการอนุมัติสิทธิ์</h2>
-            <p className="text-slate-500 text-sm mb-6">บัญชีของคุณกำลังรอการตรวจสอบจาก Admin</p>
-            <button onClick={onLogout} className="text-red-500 font-bold hover:underline text-sm">ออกจากระบบ</button>
-        </div>
-    </div>
-);
-
+// --- EDIT PROFILE MODAL ---
 const ProfileModal = ({ isOpen, onClose, user, userProfile, onUpdate }) => {
   const [name, setName] = useState(user?.displayName || '');
   const [photo, setPhoto] = useState(user?.photoURL || '');
@@ -406,6 +403,7 @@ export default function TeamTaweeApp() {
   const updateUserStatus = (uid, status, role) => { updateDoc(doc(db, "user_profiles", uid), { status, role }); logActivity("Admin Update", `${uid} -> ${status}`); };
 
   // Render Data
+  // *** Updated Task Status Logic for Graph ***
   const groupedTasks = { solver: tasks.filter(t => t.columnKey === 'solver'), principles: tasks.filter(t => t.columnKey === 'principles'), defender: tasks.filter(t => t.columnKey === 'defender'), expert: tasks.filter(t => t.columnKey === 'expert'), backoffice: tasks.filter(t => t.columnKey === 'backoffice') };
   const urgentTasks = tasks.filter(t => t.tag === 'Urgent');
   const allTags = ['All', ...new Set([...PRESET_TAGS, ...tasks.map(t => t.tag)].filter(Boolean))];
@@ -428,11 +426,12 @@ export default function TeamTaweeApp() {
 
     switch (activeTab) {
       case 'dashboard':
-        const taskStats = { done: 0, pending: 0, total: 0, progress: 0, todo: 0 };
+        const taskStats = { done: 0, doing: 0, waiting: 0, total: 0 };
         tasks.forEach(t => { 
           if(t.status==='Done') taskStats.done++; 
-          else if(t.status==='In Progress' || t.status==='In Review') { taskStats.progress++; taskStats.pending++; } 
-          else if(t.status!=='Canceled') { taskStats.todo++; taskStats.pending++; }
+          else if(t.status==='In Progress' || t.status==='In Review') taskStats.doing++;
+          else if(t.status!=='Canceled') taskStats.waiting++;
+          
           if(t.status!=='Canceled') taskStats.total++; 
         });
         return (
@@ -451,8 +450,8 @@ export default function TeamTaweeApp() {
                     <StatusDonutChart stats={taskStats} />
                     <div className="flex justify-center gap-6 mt-6 text-xs font-bold w-full">
                         <div className="text-center"><div className="w-3 h-3 rounded-full bg-emerald-500 mx-auto mb-1"></div> เสร็จ {taskStats.done}</div>
-                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-blue-500 mx-auto mb-1"></div> ทำ {taskStats.progress}</div>
-                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1"></div> รอ {taskStats.todo}</div>
+                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-blue-500 mx-auto mb-1"></div> ทำ {taskStats.doing}</div>
+                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1"></div> รอ {taskStats.waiting}</div>
                     </div>
                 </div>
                 {/* Middle: Strategy Preview (Promoted) */}
@@ -485,13 +484,13 @@ export default function TeamTaweeApp() {
                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
                     <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan</p><button onClick={()=>navigateTo('masterplan')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button></div>
                     <div className="space-y-4 flex-1">
-                        {plans.slice(0,3).map(p=><div key={p.id}><div className="flex justify-between text-sm mb-1"><span className="font-bold text-slate-700 truncate w-40">{p.title}</span><span className="text-slate-500 text-xs">{p.progress}%</span></div><div className="w-full bg-slate-100 rounded-full h-1.5"><div className="bg-indigo-600 h-1.5 rounded-full" style={{width:`${p.progress}%`}}></div></div></div>)}
+                        {plans.slice(0,3).map(p=><div key={p.id}><div className="flex justify-between text-sm mb-1"><span className="font-bold text-slate-700 truncate w-40">{p.title}</span><span className="text-slate-500 text-xs">{p.progress || 0}%</span></div><div className="w-full bg-slate-100 rounded-full h-1.5"><div className="bg-indigo-600 h-1.5 rounded-full" style={{width:`${p.progress || 0}%`}}></div></div></div>)}
                     </div>
                 </div>
                 {/* News Links */}
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col overflow-hidden h-full">
                     <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition border-b border-slate-100" onClick={()=>setIsDistOpen(!isDistOpen)}>
-                        <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500"/><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าวที่ลงแล้ว</h3></div>{isDistOpen?<ChevronUp className="w-4 h-4 text-slate-400"/>:<ChevronDown className="w-4 h-4 text-slate-400"/>}
+                        <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500"/><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าวที่ลงแล้ว (News Links)</h3></div>{isDistOpen?<ChevronUp className="w-4 h-4 text-slate-400"/>:<ChevronDown className="w-4 h-4 text-slate-400"/>}
                     </div>
                     {isDistOpen && <div className="p-4 max-h-60 overflow-y-auto custom-scrollbar bg-white"><button onClick={addPublishedLink} className="w-full text-xs bg-blue-50 text-blue-600 py-2 rounded border font-bold mb-3 hover:bg-blue-100">+ เพิ่มลิงก์</button><div className="space-y-2">{publishedLinks.map(l=><div key={l.id} className="flex justify-between p-2 border rounded hover:bg-slate-50 group"><a href={l.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 truncate w-full font-medium block">{l.title}</a><button onClick={()=>deleteLink(l.id)}><Trash2 className="w-3 h-3 text-slate-300 hover:text-red-500"/></button></div>)}</div></div>}
                 </div>
@@ -606,7 +605,7 @@ export default function TeamTaweeApp() {
                 </div>
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mt-4">
                     <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">Quick Contacts</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{media.filter(c=>c.active).map((c,i)=><div key={i} className="p-4 border rounded-xl flex justify-between group"><div className="flex flex-col"><p className="font-bold text-sm">{c.name}</p><div className="text-xs text-slate-500 flex flex-col gap-1 mt-1"><span>📞 {c.phone}</span><span>LINE: {c.line}</span></div></div><button onClick={(e)=>{e.stopPropagation(); editMedia(c)}} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-blue-600"><Edit2 className="w-4 h-4"/></button></div>)}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{media.filter(c=>c.active).map((c,i)=><div key={i} className="p-4 border rounded-xl flex justify-between group"><div className="flex flex-col"><p className="font-bold text-sm">{c.name}</p><div className="text-xs text-slate-500 flex flex-col gap-1 mt-1"><span>📞 {c.phone}</span><span>LINE: {c.line}</span></div></div><button onClick={(e)=>{e.stopPropagation(); editMedia(c)}} className="text-slate-300 hover:text-blue-600"><Edit2 className="w-4 h-4"/></button></div>)}</div>
                     <button onClick={() => navigateTo('assets')} className="text-xs text-blue-600 font-bold hover:underline mt-4 block w-full text-center border-t border-slate-100 pt-3">ดูรายชื่อทั้งหมด</button>
                 </div>
             </div>
