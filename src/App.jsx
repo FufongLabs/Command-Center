@@ -14,10 +14,28 @@ import {
   Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, Search, Shield, FileClock, Check
 } from 'lucide-react';
 
-// --- GLOBAL CONSTANTS ---
+// --- GLOBAL CONSTANTS (UPDATED) ---
 const PRESET_TAGS = ["Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"];
-const ASSET_TYPES = ["Own media", "Partner", "NEWS Paper", "NEWS Website", "Fan Club (own)"];
-const TASK_STATUSES = ["To Do", "In Progress", "In Review", "Done", "Idea", "Waiting list", "Canceled"];
+
+// 1. Asset Types
+const ASSET_TYPES = [
+  "Own media", 
+  "Partner", 
+  "NEWS Paper", 
+  "NEWS Website", 
+  "Fan Club (own)"
+];
+
+// 2. Task Statuses
+const TASK_STATUSES = [
+  "To Do", 
+  "In Progress", 
+  "In Review", 
+  "Done", 
+  "Idea", 
+  "Waiting list", 
+  "Canceled"
+];
 
 const DEFAULT_SOP = [
   { text: "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)", done: false },
@@ -188,6 +206,7 @@ const PageHeader = ({ title, subtitle, action }) => (
   </div>
 );
 
+// --- UPDATED STATUS BADGE (New Colors) ---
 const StatusBadge = ({ status }) => {
   const styles = {
     "To Do": "bg-slate-100 text-slate-600 border-slate-200",
@@ -201,14 +220,15 @@ const StatusBadge = ({ status }) => {
   return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
-// --- UPDATED GRAPH LOGIC ---
+// --- UPDATED GRAPH LOGIC (7 STATUSES) ---
 const StatusDonutChart = ({ stats }) => {
-  // Logic: เขียว=Done, ฟ้า=In Progress+In Review, เทา=To Do+Idea+Waiting list
   const total = stats.total || 1; 
+  // 1. Done = เขียว
   const donePercent = (stats.done / total) * 100;
+  // 2. Doing (In Progress + In Review) = ฟ้า
   const doingPercent = (stats.doing / total) * 100;
-  // const waitingPercent = (stats.waiting / total) * 100; // The rest is gray
-
+  // 3. Waiting (To Do + Idea + Waiting list) = เทา (ที่เหลือ)
+  
   const circumference = 2 * Math.PI * 40;
 
   return (
@@ -216,11 +236,11 @@ const StatusDonutChart = ({ stats }) => {
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" /> {/* Base Gray (Waiting) */}
         
-        {/* Doing Layer (Blue) */}
+        {/* Doing Layer (Blue) - starts after Done */}
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" 
           strokeDasharray={`${(donePercent + doingPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
         
-        {/* Done Layer (Green) */}
+        {/* Done Layer (Green) - starts at 0 */}
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" 
           strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
@@ -232,7 +252,7 @@ const StatusDonutChart = ({ stats }) => {
   );
 };
 
-// --- LOGIN SCREEN ---
+// --- LOGIN & PROFILE ---
 const LoginScreen = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -267,7 +287,17 @@ const LoginScreen = () => {
   );
 };
 
-// --- EDIT PROFILE MODAL ---
+const PendingScreen = ({ onLogout }) => (
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 font-sans p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
+            <div className="mx-auto bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mb-4"><Lock className="w-8 h-8 text-amber-600"/></div>
+            <h2 className="text-xl font-bold text-slate-800 mb-2">รอการอนุมัติสิทธิ์</h2>
+            <p className="text-slate-500 text-sm mb-6">บัญชีของคุณกำลังรอการตรวจสอบจาก Admin</p>
+            <button onClick={onLogout} className="text-red-500 font-bold hover:underline text-sm">ออกจากระบบ</button>
+        </div>
+    </div>
+);
+
 const ProfileModal = ({ isOpen, onClose, user, userProfile, onUpdate }) => {
   const [name, setName] = useState(user?.displayName || '');
   const [photo, setPhoto] = useState(user?.photoURL || '');
@@ -351,22 +381,15 @@ export default function TeamTaweeApp() {
     const unsubPlans = onSnapshot(collection(db, "plans"), (s) => setPlans(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubMedia = onSnapshot(collection(db, "media"), (s) => setMedia(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubChannels = onSnapshot(collection(db, "channels"), (s) => setChannels(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    // FIX: Use safe navigation for publishedLinks in case collection doesn't exist yet
-    try {
-      const unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-      // Admin Data
-      let unsubUsers = () => {}, unsubLogs = () => {};
-      if (userProfile?.role === 'Admin') {
-          unsubUsers = onSnapshot(collection(db, "user_profiles"), (s) => setUsersList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-          unsubLogs = onSnapshot(query(collection(db, "logs"), orderBy("createdAt", "desc")), (s) => setActivityLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-      }
-      setIsDataLoading(false);
-      return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); unsubUsers(); unsubLogs(); };
-    } catch(e) {
-      console.log("Links collection not ready yet");
-      setIsDataLoading(false);
-      return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); };
+    const unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
+    let unsubUsers = () => {}, unsubLogs = () => {};
+    if (userProfile?.role === 'Admin') {
+        unsubUsers = onSnapshot(collection(db, "user_profiles"), (s) => setUsersList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        unsubLogs = onSnapshot(query(collection(db, "logs"), orderBy("createdAt", "desc")), (s) => setActivityLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     }
+    setIsDataLoading(false);
+    return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); unsubUsers(); unsubLogs(); };
   }, [currentUser, userProfile]);
 
   const logActivity = async (action, details) => { try { await addDoc(collection(db, "logs"), { action, details, user: currentUser.displayName || currentUser.email, createdAt: serverTimestamp() }); } catch(e) {} };
@@ -426,14 +449,18 @@ export default function TeamTaweeApp() {
 
     switch (activeTab) {
       case 'dashboard':
+        // GRAPH LOGIC (Fixed)
         const taskStats = { done: 0, doing: 0, waiting: 0, total: 0 };
         tasks.forEach(t => { 
-          if(t.status==='Done') taskStats.done++; 
-          else if(t.status==='In Progress' || t.status==='In Review') taskStats.doing++;
-          else if(t.status!=='Canceled') taskStats.waiting++;
-          
-          if(t.status!=='Canceled') taskStats.total++; 
+          // Count only non-canceled
+          if(t.status!=='Canceled') {
+             taskStats.total++;
+             if(t.status==='Done') taskStats.done++;
+             else if(t.status==='In Progress' || t.status==='In Review') taskStats.doing++;
+             else taskStats.waiting++;
+          }
         });
+
         return (
           <div className="space-y-6 animate-fadeIn">
              <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" action={
