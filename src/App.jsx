@@ -66,11 +66,11 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100 relative">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
         <button onClick={onClose} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full transition"><X className="w-5 h-5 text-slate-400" /></button>
         <h3 className="text-xl font-bold text-slate-800 mb-6 pr-8">{title}</h3>
-        <div className="space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar pr-1">
+        <div className="space-y-5">
            {fields.map((field) => (
              <div key={field.key}>
                 <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase flex items-center gap-2">
@@ -98,18 +98,15 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                       list={field.type === 'datalist' ? `list-${field.key}` : undefined}
                    />
                 )}
-                {/* Quick Tags Chips (NEW FEATURE) */}
+                {field.type === 'datalist' && (
+                    <datalist id={`list-${field.key}`}>
+                        {field.options.map(opt => <option key={opt} value={opt} />)}
+                    </datalist>
+                )}
                 {field.key === 'tag' && (
-                    <div className="mt-3 flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        <p className="text-[10px] text-slate-400 w-full mb-1">เลือก Tag ที่ใช้บ่อย:</p>
-                        {PRESET_TAGS.map(tag => (
-                            <button 
-                                key={tag}
-                                onClick={() => setFormData({...formData, tag: tag})}
-                                className={`text-[10px] px-2.5 py-1.5 rounded-lg border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-400 hover:text-blue-600'}`}
-                            >
-                                {tag}
-                            </button>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        {PRESET_TAGS.slice(0,5).map(tag => (
+                            <button key={tag} onClick={() => setFormData({...formData, tag: tag})} className={`text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}>{tag}</button>
                         ))}
                     </div>
                 )}
@@ -150,20 +147,20 @@ const StatusDonutChart = ({ stats }) => {
   const total = stats.total || 1; 
   const donePercent = (stats.done / total) * 100;
   const progressPercent = (stats.progress / total) * 100;
-  const radius = 36;
+  const radius = 40;
   const circumference = 2 * Math.PI * radius;
 
   return (
-    <div className="relative w-40 h-40 flex items-center justify-center">
+    <div className="relative w-48 h-48 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="36" fill="none" className="stroke-slate-100" strokeWidth="10" strokeLinecap="round" />
-        <circle cx="50" cy="50" r="36" fill="none" className="stroke-slate-300" strokeWidth="10" strokeDasharray={`${circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="36" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="10" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="36" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="10" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-300" strokeWidth="12" strokeDasharray={`${circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
       <div className="absolute text-center">
-        <span className="text-3xl font-black text-slate-800">{stats.total}</span>
-        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TASKS</span>
+        <span className="text-4xl font-black text-slate-800">{stats.total}</span>
+        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TOTAL TASKS</span>
       </div>
     </div>
   );
@@ -205,6 +202,7 @@ const LoginScreen = () => {
             )}
             {loading ? 'กำลังเชื่อมต่อ...' : 'เข้าสู่ระบบด้วย Google'}
          </button>
+         <p className="text-[10px] text-slate-400 mt-6">Protected by Firebase Authentication</p>
       </div>
     </div>
   );
@@ -258,7 +256,29 @@ export default function TeamTaweeApp() {
   const [formModalConfig, setFormModalConfig] = useState({ isOpen: false, title: '', fields: [], onSave: () => {} });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [isDistOpen, setIsDistOpen] = useState(false); 
-  const [isSopOpen, setIsSopOpen] = useState(false); // Mobile SOP
+  const [isSopOpen, setIsSopOpen] = useState(false); 
+
+  // --- BACK BUTTON FIX (History Management) ---
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (event.state && event.state.tab) {
+        setActiveTab(event.state.tab);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    
+    // Set initial state
+    window.history.replaceState({ tab: 'dashboard' }, '', '#dashboard');
+    
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Wrapper to change tab and push history
+  const navigateTo = (tabId) => {
+    setActiveTab(tabId);
+    window.history.pushState({ tab: tabId }, '', `#${tabId}`);
+    setIsMobileMenuOpen(false);
+  };
 
   useEffect(() => {
     const titles = { dashboard: 'ภาพรวม', strategy: 'ยุทธศาสตร์', masterplan: 'แผนงานหลัก', rapidresponse: 'ปฏิบัติการด่วน', assets: 'คลังอาวุธ' };
@@ -353,7 +373,7 @@ export default function TeamTaweeApp() {
   const addNewTask = (columnKey) => {
     openFormModal("เพิ่มงานใหม่", [
         { key: 'title', label: 'ชื่องาน', placeholder: 'ระบุชื่องาน...' },
-        { key: 'tag', label: 'Tag', placeholder: 'เลือกหรือพิมพ์ใหม่...' },
+        { key: 'tag', label: 'Tag (เลือก/พิมพ์ใหม่)', type: 'datalist', options: PRESET_TAGS, placeholder: 'เช่น Viral, ลงพื้นที่' },
         { key: 'role', label: 'ผู้รับผิดชอบ', placeholder: 'เช่น Chef, Hunter' },
         { key: 'deadline', label: 'กำหนดส่ง', type: 'date' }
     ], async (data) => {
@@ -419,7 +439,6 @@ export default function TeamTaweeApp() {
   const editPlanTitle = (plan) => openFormModal("แก้ไขชื่อแผนงาน", [{key:'title', label:'ชื่อแผนงาน', defaultValue: plan.title}], async(d)=> updateDoc(doc(db,"plans",plan.id), d));
   const addPlan = () => openFormModal("สร้างแผนงานใหม่", [{key:'title', label:'ชื่อแผนงาน'}], async(d)=> addDoc(collection(db,"plans"), { ...d, progress:0, items:[] }));
 
-  // --- FIXED: Action Item Edit/Remove Logic ---
   const removePlanItem = async (planId, originalIndex, currentItems) => {
     if (confirm("ลบรายการนี้?")) {
       const newItems = currentItems.filter((_, idx) => idx !== originalIndex);
@@ -492,93 +511,92 @@ export default function TeamTaweeApp() {
             <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* 1. Status Chart + Strategy Preview (Combined) */}
-              <div className="lg:col-span-2 flex flex-col gap-6">
-                 <div className="flex flex-col md:flex-row gap-6">
-                     {/* Status */}
-                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center flex-1">
-                        <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left">Task Status</p>
-                        <StatusDonutChart stats={taskStats} />
-                        <div className="flex justify-center gap-4 mt-6 text-xs font-bold">
-                           <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> เสร็จ {taskStats.done}</div>
-                           <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> ทำ {taskStats.progress}</div>
-                           <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-300"></div> รอ {taskStats.todo}</div>
-                        </div>
-                     </div>
-
-                     {/* Strategy Preview (New Spot) */}
-                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex-1 flex flex-col">
-                        <div className="flex justify-between items-center mb-3"><p className="text-slate-500 text-xs font-bold uppercase">Strategy 4 แกน</p><button onClick={() => setActiveTab('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ไปที่กระดาน →</button></div>
-                        <div className="grid grid-cols-2 gap-3 flex-1">
-                           {['solver', 'principles', 'defender', 'expert'].map((key) => {
-                               const count = groupedTasks[key]?.length || 0;
-                               return (
-                                   <div key={key} className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center text-center cursor-pointer hover:border-blue-300 transition" onClick={() => setActiveTab('strategy')}>
-                                       <span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full">{key}</span>
-                                       <span className="text-2xl font-black text-slate-700">{count}</span>
-                                   </div>
-                               )
-                           })}
-                        </div>
-                     </div>
+              {/* 1. Status Chart */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center justify-center relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><Activity className="w-24 h-24 text-blue-600" /></div>
+                 <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left z-10">Real-time Status</p>
+                 <StatusDonutChart stats={taskStats} />
+                 <div className="flex justify-center gap-6 mt-6 text-xs font-bold w-full">
+                    <div className="text-center"><div className="w-3 h-3 rounded-full bg-emerald-500 mx-auto mb-1 shadow-sm"></div> เสร็จ {taskStats.done}</div>
+                    <div className="text-center"><div className="w-3 h-3 rounded-full bg-blue-500 mx-auto mb-1 shadow-sm"></div> ทำ {taskStats.progress}</div>
+                    <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1 shadow-sm"></div> รอ {taskStats.todo}</div>
                  </div>
               </div>
 
-              {/* 2. Distribution Hub */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
-                 <div className="p-6 border-b border-slate-100 flex-shrink-0">
+              {/* 2. Master Plan & Strategy Preview (Combined) */}
+              <div className="flex flex-col gap-6">
+                 {/* Strategy Preview */}
+                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex-1 flex flex-col">
+                    <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Strategy 4 แกน</p><button onClick={() => navigateTo('strategy')} className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600 font-bold hover:bg-slate-200 transition">ดูทั้งหมด</button></div>
+                    <div className="grid grid-cols-2 gap-3 flex-1">
+                        {['solver', 'principles', 'defender', 'expert'].map((key) => {
+                            const count = groupedTasks[key]?.length || 0;
+                            return (
+                                <div key={key} className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center text-center cursor-pointer hover:border-blue-300 transition" onClick={() => navigateTo('strategy')}>
+                                    <span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full">{key}</span>
+                                    <span className="text-2xl font-black text-slate-700">{count}</span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                 </div>
+                 
+                 {/* Master Plan Preview */}
+                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan</p><button onClick={() => navigateTo('masterplan')} className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600 font-bold hover:bg-slate-200 transition">ดูแผน</button></div>
+                    <div className="space-y-4">
+                        {plans.slice(0, 2).map(plan => (
+                            <div key={plan.id}>
+                                <div className="flex justify-between text-sm mb-1.5"><span className="font-bold text-slate-700 truncate w-40">{plan.title}</span><span className="text-slate-500 text-xs font-bold bg-slate-100 px-1.5 rounded">{plan.progress}%</span></div>
+                                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-1000" style={{ width: `${plan.progress}%` }}></div></div>
+                            </div>
+                        ))}
+                    </div>
+                 </div>
+              </div>
+
+              {/* 3. Distribution Hub & Links */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col overflow-hidden">
+                 <div className="p-6 border-b border-slate-100 bg-gradient-to-b from-white to-slate-50/50">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold text-slate-800">Distribution Hub</h3>
-                        <button onClick={() => setActiveTab('assets')} className="text-xs text-blue-600 hover:underline">จัดการ →</button>
+                        <button onClick={() => navigateTo('assets')} className="text-xs text-blue-600 hover:underline font-medium">จัดการ →</button>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         {channels.slice(0,4).map(item => (
-                            <div key={item.id} className="bg-slate-50 p-2 rounded border border-slate-100 text-center relative group">
-                                <h4 className="font-bold text-slate-700 text-xs truncate">{item.name}</h4>
-                                <span className="text-xl font-black text-blue-600 block">{item.count || 0}</span>
-                                <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition absolute -top-2 inset-x-0">
-                                    <button onClick={() => updateDist(item.id, (item.count || 0) - 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-red-600 z-10"><Minus className="w-3 h-3" /></button>
-                                    <button onClick={() => updateDist(item.id, (item.count || 0) + 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-blue-600 z-10"><Plus className="w-3 h-3" /></button>
+                            <div key={item.id} className="bg-white p-3 rounded-xl border border-slate-100 text-center relative group shadow-sm">
+                                <h4 className="font-bold text-slate-600 text-[10px] uppercase truncate mb-1">{item.name}</h4>
+                                <span className="text-2xl font-black text-blue-600 block">{item.count || 0}</span>
+                                <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition absolute -top-3 inset-x-0">
+                                    <button onClick={() => updateDist(item.id, (item.count || 0) - 1)} className="bg-white shadow-md border rounded-full p-1 hover:text-red-600 z-10 hover:scale-110 transition"><Minus className="w-3 h-3" /></button>
+                                    <button onClick={() => updateDist(item.id, (item.count || 0) + 1)} className="bg-white shadow-md border rounded-full p-1 hover:text-blue-600 z-10 hover:scale-110 transition"><Plus className="w-3 h-3" /></button>
                                 </div>
                             </div>
                         ))}
                     </div>
                  </div>
                  
-                 {/* News Links */}
-                 <div className="flex-1 bg-slate-50/50 flex flex-col min-h-[200px]">
-                    <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition border-b border-slate-200" onClick={() => setIsDistOpen(!isDistOpen)}>
-                       <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500" /><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าวที่ลงแล้ว</h3></div>
+                 <div className="flex-1 bg-white p-0 flex flex-col">
+                    <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition border-b border-slate-100" onClick={() => setIsDistOpen(!isDistOpen)}>
+                       <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500" /><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าว (News Links)</h3></div>
                        {isDistOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                     </div>
                     {isDistOpen && (
-                        <div className="p-4 overflow-y-auto custom-scrollbar flex-1">
-                            <button onClick={addPublishedLink} className="w-full text-xs bg-white text-blue-600 py-2 rounded border border-blue-200 font-bold mb-3 hover:bg-blue-50 shadow-sm">+ เพิ่มลิงก์</button>
+                        <div className="p-4 max-h-60 overflow-y-auto custom-scrollbar bg-slate-50/50 flex-1">
+                            <button onClick={addPublishedLink} className="w-full text-xs bg-white text-blue-600 py-2.5 rounded-lg border border-blue-200 font-bold mb-3 hover:bg-blue-50 transition shadow-sm">+ เพิ่มลิงก์ใหม่</button>
                             <div className="space-y-2">
                                 {publishedLinks.map(link => (
-                                    <div key={link.id} className="flex justify-between items-start p-2 border rounded hover:bg-slate-50 group bg-white">
-                                        <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline truncate w-full font-medium block">{link.title}</a>
+                                    <div key={link.id} className="flex justify-between items-start p-2.5 border rounded-lg bg-white hover:border-blue-300 transition group shadow-sm">
+                                        <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline truncate w-full font-medium block pr-2">{link.title}</a>
                                         <button onClick={() => deleteLink(link.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
                                     </div>
                                 ))}
+                                {publishedLinks.length === 0 && <div className="text-center text-xs text-slate-400 py-4">ยังไม่มีลิงก์ข่าว</div>}
                             </div>
                         </div>
                     )}
                  </div>
               </div>
-            </div>
-
-            {/* Master Plan Preview (Bottom) */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-2">
-                 <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan Progress</p><button onClick={() => setActiveTab('masterplan')} className="text-xs text-blue-600 font-bold hover:underline">ดูรายละเอียด →</button></div>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {plans.slice(0,3).map(plan => (
-                        <div key={plan.id}>
-                            <div className="flex justify-between text-sm mb-1"><span className="font-bold text-slate-700 truncate">{plan.title}</span><span className="text-slate-500">{plan.progress}%</span></div>
-                            <div className="w-full bg-slate-100 rounded-full h-2"><div className="bg-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: `${plan.progress}%` }}></div></div>
-                        </div>
-                    ))}
-                 </div>
             </div>
           </div>
         );
@@ -586,15 +604,24 @@ export default function TeamTaweeApp() {
       case 'strategy':
         return (
           <div className="h-full flex flex-col">
-            <PageHeader title="กระดานยุทธศาสตร์ 4 แกน" subtitle="Strategy Board & Tasks" action={
-                    <div className="flex gap-3">
-                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                             <Filter className="w-4 h-4 text-slate-500" />
-                             <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
-                        </div>
-                        <button onClick={() => setHideDone(!hideDone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div><h2 className="text-2xl font-bold text-slate-800 tracking-tight">กระดานยุทธศาสตร์</h2><p className="text-slate-500 text-sm mt-1">Strategy Board & Tasks</p></div>
+                <div className="flex items-center gap-3 self-end md:self-auto relative group/menu">
+                    <div className="md:hidden absolute right-0 top-10 bg-white shadow-xl rounded-xl p-4 border border-slate-200 z-20 hidden group-hover/menu:block w-64">
+                        <p className="text-xs font-bold text-slate-400 mb-2 uppercase">Filter</p>
+                        <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="w-full bg-slate-50 text-sm rounded-lg p-2 border mb-3"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
+                        <button onClick={() => setHideDone(!hideDone)} className="w-full text-left text-sm font-bold text-blue-600 py-2">{hideDone ? "Show Done Tasks" : "Hide Done Tasks"}</button>
                     </div>
-            } />
+                    <button className="md:hidden p-2 bg-white rounded-lg border shadow-sm"><MoreHorizontal className="w-5 h-5 text-slate-600" /></button>
+
+                    <div className="hidden md:flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                        <Filter className="w-4 h-4 text-slate-500" />
+                        <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none font-medium text-slate-700"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
+                    </div>
+                    <button onClick={() => setHideDone(!hideDone)} className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition shadow-sm ${hideDone ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button>
+                </div>
+            </div>
+
             <div className="overflow-x-auto pb-4 flex-1 custom-scrollbar">
               <div className="flex flex-col md:flex-row gap-4 min-w-full md:min-w-[1200px] h-full">
                 {[
@@ -641,8 +668,11 @@ export default function TeamTaweeApp() {
                         <div className="grid grid-cols-2 gap-4">
                            <div>
                              <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Tag</label>
-                             <input list="edit-tag-options" type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none" />
-                             <datalist id="edit-tag-options">{PRESET_TAGS.map(t=><option key={t} value={t}/>)}</datalist>
+                             <div className="relative">
+                                <input list="edit-tag-options" type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none pl-9" />
+                                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                                <datalist id="edit-tag-options">{PRESET_TAGS.map(t=><option key={t} value={t}/>)}</datalist>
+                             </div>
                              <div className="mt-2 flex flex-wrap gap-1.5">{PRESET_TAGS.slice(0,4).map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag: t})} className="text-[9px] border px-2 py-0.5 rounded-full hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition">{t}</button>)}</div>
                            </div>
                            <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">สถานะ</label><select value={editingTask.status} onChange={e => setEditingTask({...editingTask, status: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-white focus:border-blue-500 outline-none"><option value="To Do">To Do</option><option value="In Progress">In Progress</option><option value="In Review">In Review</option><option value="Done">Done</option></select></div>
@@ -730,8 +760,9 @@ export default function TeamTaweeApp() {
 
                     {/* Right: Urgent Cases Grid */}
                     <div className="lg:w-2/3 space-y-6">
-                        <div className="grid grid-cols-1 gap-4">
-                            {urgentTasks.length > 0 ? urgentTasks.map(task => (
+                        {urgentTasks.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {urgentTasks.map(task => (
                                 <div key={task.id} className="bg-white p-5 rounded-2xl border-l-[6px] border-red-500 shadow-sm hover:shadow-md hover:translate-y-[-2px] transition-all cursor-pointer group" onClick={() => setUrgentModal(task)}>
                                     <div className="flex justify-between items-start mb-3">
                                         <span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded shadow-sm animate-pulse">URGENT CASE</span>
@@ -748,14 +779,15 @@ export default function TeamTaweeApp() {
                                         </div>
                                     </div>
                                 </div>
-                            )) : (
-                                <div className="p-16 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 bg-slate-50/50 flex flex-col items-center justify-center">
-                                    <div className="bg-white p-4 rounded-full shadow-sm mb-3"><CheckCircle2 className="w-8 h-8 text-green-500" /></div>
-                                    <p className="font-medium">สถานการณ์ปกติ</p>
-                                    <p className="text-xs mt-1 opacity-70">ยังไม่มีเคสด่วนที่ต้องดำเนินการ</p>
-                                </div>
-                            )}
-                        </div>
+                            ))}
+                            </div>
+                        ) : (
+                            <div className="p-16 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 bg-slate-50/50 flex flex-col items-center justify-center">
+                                <div className="bg-white p-4 rounded-full shadow-sm mb-3"><CheckCircle2 className="w-8 h-8 text-green-500" /></div>
+                                <p className="font-medium">สถานการณ์ปกติ</p>
+                                <p className="text-xs mt-1 opacity-70">ยังไม่มีเคสด่วนที่ต้องดำเนินการ</p>
+                            </div>
+                        )}
 
                         {/* Quick Contacts (Restored) */}
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mt-8">
@@ -772,7 +804,7 @@ export default function TeamTaweeApp() {
                                     </div>
                                 ))}
                             </div>
-                            <button onClick={() => setActiveTab('assets')} className="text-xs text-blue-600 font-bold hover:underline mt-4 block w-full text-center border-t border-slate-100 pt-3">ดูรายชื่อทั้งหมด</button>
+                            <button onClick={() => navigateTo('assets')} className="text-xs text-blue-600 font-bold hover:underline mt-4 block w-full text-center border-t border-slate-100 pt-3">ดูรายชื่อทั้งหมด</button>
                         </div>
                     </div>
                 </div>
@@ -912,7 +944,7 @@ export default function TeamTaweeApp() {
         <div className="p-6 border-b border-slate-700 flex justify-between items-center"><div><h1 className="text-xl font-black tracking-wider text-white">TEAM TAWEE</h1><p className="text-[10px] text-blue-400 font-bold tracking-widest uppercase mt-1">Stand Together</p></div><button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400"><X /></button></div>
         <nav className="p-4 space-y-2 overflow-y-auto flex-1">
           {navItems.map(item => (
-            <button key={item.id} onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-left ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+            <button key={item.id} onClick={() => navigateTo(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-left ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
               <item.icon className={`w-5 h-5 flex-shrink-0 ${item.color || ''}`} /><div className="flex flex-col"><span className="font-bold text-sm leading-tight">{item.title}</span><span className="text-[10px] opacity-80 font-medium">({item.subtitle})</span></div>
             </button>
           ))}
