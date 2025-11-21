@@ -11,20 +11,12 @@ import {
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, Eye, FileText, Share2, Plus, 
-  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag
+  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, MoreHorizontal
 } from 'lucide-react';
 
-// --- PREDEFINED DATA (FIXED MISSING SOP) ---
+// --- PREDEFINED DATA ---
 const PRESET_TAGS = [
   "Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"
-];
-
-const DEFAULT_SOP = [
-  { text: "1. ทีม Monitor สรุปประเด็น (ใคร? ทำอะไร? กระทบเรายังไง?)", done: false },
-  { text: "2. ร่าง Message สั้นๆ (เน้น Fact + จุดยืน)", done: false },
-  { text: "3. ขอ Approved ด่วน (Line/โทร)", done: false },
-  { text: "4. ผลิตสื่อด่วน (Graphic Quote หรือ คลิปสัมภาษณ์สั้น)", done: false },
-  { text: "5. กระจายลง Social Media & ส่งกลุ่มนักข่าว", done: false }
 ];
 
 const SOP_GUIDE = [
@@ -40,9 +32,14 @@ const SOP_GUIDE = [
 const LoadingOverlay = ({ isOpen, message = "กำลังบันทึกข้อมูล..." }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-[100] animate-fadeIn">
-      <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-3" />
-      <p className="text-slate-600 font-bold animate-pulse">{message}</p>
+    <div className="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-[100] animate-fadeIn">
+      <div className="relative">
+        <div className="absolute inset-0 bg-blue-200 rounded-full animate-ping opacity-75"></div>
+        <div className="relative bg-white p-4 rounded-full shadow-xl">
+            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+        </div>
+      </div>
+      <p className="text-slate-600 font-bold mt-4 animate-pulse">{message}</p>
     </div>
   );
 };
@@ -61,56 +58,63 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">
-        <div className="flex justify-between items-center mb-6">
-           <h3 className="text-xl font-bold text-slate-800">{title}</h3>
-           <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X className="w-6 h-6 text-slate-400" /></button>
-        </div>
-        <div className="space-y-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full transition"><X className="w-5 h-5 text-slate-400" /></button>
+        <h3 className="text-xl font-bold text-slate-800 mb-6 pr-8">{title}</h3>
+        <div className="space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar pr-1">
            {fields.map((field) => (
              <div key={field.key}>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase flex items-center gap-2">
+                <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase flex items-center gap-2">
                     {field.label}
                     {field.key === 'tag' && <Tag className="w-3 h-3 text-blue-500" />}
                 </label>
                 {field.type === 'select' ? (
-                   <select 
-                      value={formData[field.key]} 
-                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                      className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-white focus:border-blue-500 outline-none"
-                   >
-                      {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                   </select>
-                ) : field.type === 'datalist' ? (
-                    <div className="relative">
-                      <input 
-                        list={`list-${field.key}`}
-                        value={formData[field.key]}
-                        onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                        className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none pl-9"
-                        placeholder={field.placeholder || ''}
-                      />
-                      <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                      <datalist id={`list-${field.key}`}>
-                        {field.options.map(opt => <option key={opt} value={opt} />)}
-                      </datalist>
-                    </div>
+                   <div className="relative">
+                       <select 
+                          value={formData[field.key]} 
+                          onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                          className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-slate-50 focus:bg-white focus:border-blue-500 outline-none appearance-none font-medium text-slate-700 transition-all"
+                       >
+                          {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                       </select>
+                       <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none"/>
+                   </div>
                 ) : (
                    <input 
                       type={field.type || 'text'}
                       value={formData[field.key]}
                       onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                      className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none"
+                      className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-slate-50 focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-700 transition-all placeholder:text-slate-300"
                       placeholder={field.placeholder || ''}
+                      list={field.type === 'datalist' ? `list-${field.key}` : undefined}
                    />
+                )}
+                {field.type === 'datalist' && (
+                    <datalist id={`list-${field.key}`}>
+                        {field.options.map(opt => <option key={opt} value={opt} />)}
+                    </datalist>
+                )}
+                {/* Quick Tags Chips */}
+                {field.key === 'tag' && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        {PRESET_TAGS.slice(0,5).map(tag => (
+                            <button 
+                                key={tag}
+                                onClick={() => setFormData({...formData, tag: tag})}
+                                className={`text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}
+                            >
+                                {tag}
+                            </button>
+                        ))}
+                    </div>
                 )}
              </div>
            ))}
         </div>
         <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
-          <button onClick={onClose} className="px-5 py-2.5 text-slate-500 font-bold hover:bg-slate-100 rounded-lg transition-colors">ยกเลิก</button>
-          <button onClick={() => onSave(formData)} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all">{submitText}</button>
+          <button onClick={onClose} className="px-5 py-2.5 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors text-sm">ยกเลิก</button>
+          <button onClick={() => onSave(formData)} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 text-sm">{submitText}</button>
         </div>
       </div>
     </div>
@@ -118,35 +122,44 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
 };
 
 const PageHeader = ({ title, subtitle, action }) => (
-  <div className="flex justify-between items-center mb-6">
-    <div><h2 className="text-2xl font-bold text-slate-800 tracking-tight">{title}</h2><p className="text-slate-500 text-sm mt-1">{subtitle}</p></div>
-    {action}
+  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+    <div>
+        <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">{title}</h2>
+        <p className="text-slate-500 text-sm mt-1 font-medium">{subtitle}</p>
+    </div>
+    <div className="w-full md:w-auto">{action}</div>
   </div>
 );
 
 const StatusBadge = ({ status }) => {
-  const colors = { "To Do": "bg-slate-100 text-slate-600", "In Progress": "bg-blue-100 text-blue-600", "In Review": "bg-yellow-100 text-yellow-700", "Done": "bg-green-100 text-green-700", "Urgent": "bg-red-100 text-red-600 font-bold" };
-  return <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wide font-semibold ${colors[status] || "bg-gray-100"}`}>{status}</span>;
+  const styles = {
+    "To Do": "bg-slate-100 text-slate-600 border-slate-200",
+    "In Progress": "bg-blue-50 text-blue-600 border-blue-100", 
+    "In Review": "bg-amber-50 text-amber-600 border-amber-100", 
+    "Done": "bg-emerald-50 text-emerald-600 border-emerald-100", 
+    "Urgent": "bg-red-50 text-red-600 border-red-100"
+  };
+  return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
 const StatusDonutChart = ({ stats }) => {
   const total = stats.total || 1; 
   const donePercent = (stats.done / total) * 100;
   const progressPercent = (stats.progress / total) * 100;
-  const radius = 16;
+  const radius = 40;
   const circumference = 2 * Math.PI * radius;
 
   return (
-    <div className="relative w-40 h-40 flex items-center justify-center">
-      <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 36 36">
-        <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="3.8" />
-        <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-300" strokeWidth="3.8" strokeDasharray={`${circumference} ${circumference}`} />
-        <circle cx="18" cy="18" r="16" fill="none" className="stroke-blue-500 transition-all duration-1000" strokeWidth="3.8" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} />
-        <circle cx="18" cy="18" r="16" fill="none" className="stroke-green-500 transition-all duration-1000" strokeWidth="3.8" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} />
+    <div className="relative w-48 h-48 flex items-center justify-center">
+      <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-300" strokeWidth="12" strokeDasharray={`${circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
       <div className="absolute text-center">
-        <span className="text-3xl font-black text-slate-800">{stats.total}</span>
-        <span className="block text-[10px] text-slate-400 font-bold uppercase">TASKS</span>
+        <span className="text-4xl font-black text-slate-800">{stats.total}</span>
+        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TOTAL TASKS</span>
       </div>
     </div>
   );
@@ -169,15 +182,26 @@ const LoginScreen = () => {
     setLoading(false);
   };
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 font-sans p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200 text-center">
-         <div className="mb-8"><h1 className="text-3xl font-black text-slate-900">TEAM TAWEE</h1><p className="text-blue-600 font-bold tracking-widest text-xs uppercase mt-2">Stand Together</p></div>
-         <h2 className="text-xl font-bold text-slate-800 mb-2">ยินดีต้อนรับ</h2><p className="text-slate-500 text-sm mb-8">กรุณาเข้าสู่ระบบด้วยบัญชี Google ของบริษัท</p>
-         {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
-         <button onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white border-2 border-slate-200 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-3">
-            {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Mail className="w-5 h-5 text-red-500" />}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 font-sans p-4">
+      <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md border border-white/50 backdrop-blur-sm text-center relative overflow-hidden">
+         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
+         <div className="mb-8">
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">TEAM TAWEE</h1>
+            <p className="text-blue-600 font-bold tracking-widest text-xs uppercase mt-2 bg-blue-50 inline-block px-3 py-1 rounded-full">Stand Together</p>
+         </div>
+         
+         <h2 className="text-xl font-bold text-slate-800 mb-2">ยินดีต้อนรับสู่ระบบ</h2>
+         <p className="text-slate-500 text-sm mb-8">ศูนย์ปฏิบัติการและบริหารงานยุทธศาสตร์</p>
+         
+         {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4 font-medium border border-red-100">{error}</div>}
+
+         <button onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white border-2 border-slate-200 text-slate-700 font-bold py-3.5 rounded-xl hover:bg-slate-50 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-center gap-3 group">
+            {loading ? <RefreshCw className="w-5 h-5 animate-spin text-blue-600" /> : (
+                <svg className="w-5 h-5 transition-transform group-hover:scale-110" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
+            )}
             {loading ? 'กำลังเชื่อมต่อ...' : 'เข้าสู่ระบบด้วย Google'}
          </button>
+         <p className="text-[10px] text-slate-400 mt-6">Protected by Firebase Authentication</p>
       </div>
     </div>
   );
@@ -231,6 +255,7 @@ export default function TeamTaweeApp() {
   const [formModalConfig, setFormModalConfig] = useState({ isOpen: false, title: '', fields: [], onSave: () => {} });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [isDistOpen, setIsDistOpen] = useState(false); 
+  const [isSopOpen, setIsSopOpen] = useState(false); // Mobile SOP Accordion
 
   useEffect(() => {
     const titles = { dashboard: 'ภาพรวม', strategy: 'ยุทธศาสตร์', masterplan: 'แผนงานหลัก', rapidresponse: 'ปฏิบัติการด่วน', assets: 'คลังอาวุธ' };
@@ -325,7 +350,7 @@ export default function TeamTaweeApp() {
   const addNewTask = (columnKey) => {
     openFormModal("เพิ่มงานใหม่", [
         { key: 'title', label: 'ชื่องาน', placeholder: 'ระบุชื่องาน...' },
-        { key: 'tag', label: 'Tag (เลือกหรือพิมพ์ใหม่)', type: 'datalist', options: PRESET_TAGS, placeholder: 'เช่น Viral, ลงพื้นที่' },
+        { key: 'tag', label: 'Tag (เลือก/พิมพ์ใหม่)', type: 'datalist', options: PRESET_TAGS, placeholder: 'เช่น Viral, ลงพื้นที่' },
         { key: 'role', label: 'ผู้รับผิดชอบ', placeholder: 'เช่น Chef, Hunter' },
         { key: 'deadline', label: 'กำหนดส่ง', type: 'date' }
     ], async (data) => {
@@ -336,7 +361,6 @@ export default function TeamTaweeApp() {
     });
   };
 
-  // --- ASSET ACTIONS ---
   const addChannel = () => {
     openFormModal("เพิ่มช่องทางเผยแพร่", [
         { key: 'name', label: 'ชื่อช่องทาง', placeholder: 'เช่น Facebook Page' },
@@ -377,10 +401,7 @@ export default function TeamTaweeApp() {
     });
   };
   const deleteLink = async (id) => { if(confirm("ลบลิงก์นี้?")) await deleteDoc(doc(db, "published_links", id)); };
-  
-  // Fix NaN issue
   const updateDist = async (id, count) => updateDoc(doc(db, "channels", id), { count: Math.max(0, count || 0) });
-  
   const deleteChannel = async (id) => { if(confirm("ลบช่องทางนี้?")) await deleteDoc(doc(db, "channels", id)); };
   const toggleMediaActive = async (contact) => await updateDoc(doc(db, "media", contact.id), { active: !contact.active });
   const deleteMedia = async (id) => { if(confirm("ลบรายชื่อนี้?")) await deleteDoc(doc(db, "media", id)); };
@@ -403,7 +424,7 @@ export default function TeamTaweeApp() {
             ...data, 
             status: "To Do", role: "Hunter", tag: "Urgent", 
             link: "", columnKey: "defender",
-            sop: DEFAULT_SOP, // Fixed undefined error
+            sop: DEFAULT_SOP, 
             createdBy: currentUser.displayName, createdAt: new Date().toISOString()
         });
         alert("เปิดเคสเรียบร้อย! จัดการได้ในหน้านี้ทันที");
@@ -447,104 +468,105 @@ export default function TeamTaweeApp() {
 
         return (
           <div className="space-y-6 animate-fadeIn">
-            <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" />
+            {/* Action Shortcuts (New) */}
+            <div className="flex justify-between items-center mb-6">
+               <div>
+                  <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">ภาพรวมสถานการณ์</h2>
+                  <p className="text-slate-500 text-sm mt-1 font-medium">Overview & Statistics</p>
+               </div>
+               <div className="flex gap-2">
+                  <button onClick={() => addNewTask('solver')} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2"><Plus className="w-4 h-4" /> เพิ่มงาน</button>
+                  <button onClick={createUrgentCase} className="bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> เคสด่วน</button>
+               </div>
+            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* 1. Status Chart */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-                 <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left">Task Status</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* 1. Status Chart (Revamp) */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center justify-center relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><Activity className="w-24 h-24 text-blue-600" /></div>
+                 <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left z-10">Real-time Status</p>
                  <StatusDonutChart stats={taskStats} />
-                 <div className="flex justify-center gap-4 mt-6 text-xs font-bold">
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> เสร็จ {taskStats.done}</div>
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> ทำ {taskStats.progress}</div>
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-300"></div> รอ {taskStats.todo}</div>
+                 <div className="flex justify-center gap-6 mt-6 text-xs font-bold w-full">
+                    <div className="text-center"><div className="w-3 h-3 rounded-full bg-emerald-500 mx-auto mb-1 shadow-sm"></div> เสร็จ {taskStats.done}</div>
+                    <div className="text-center"><div className="w-3 h-3 rounded-full bg-blue-500 mx-auto mb-1 shadow-sm"></div> ทำ {taskStats.progress}</div>
+                    <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1 shadow-sm"></div> รอ {taskStats.todo}</div>
                  </div>
               </div>
 
-              {/* 2. Distribution Hub */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold text-slate-800">Distribution Hub</h3>
-                    <button onClick={() => setActiveTab('assets')} className="text-xs text-blue-600 hover:underline">จัดการ →</button>
-                 </div>
-                 <div className="grid grid-cols-2 gap-3 flex-1 content-start">
-                    {channels.slice(0,4).map(item => (
-                        <div key={item.id} className="bg-slate-50 p-3 rounded border border-slate-100 text-center relative group">
-                            <h4 className="font-bold text-slate-700 text-xs truncate">{item.name}</h4>
-                            <span className="text-2xl font-black text-blue-600 block">{item.count || 0}</span>
-                            <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition absolute -top-2 inset-x-0">
-                                <button onClick={() => updateDist(item.id, (item.count || 0) - 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-red-600"><Minus className="w-3 h-3" /></button>
-                                <button onClick={() => updateDist(item.id, (item.count || 0) + 1)} className="bg-white shadow border rounded-full p-0.5 hover:text-blue-600"><Plus className="w-3 h-3" /></button>
-                            </div>
-                        </div>
-                    ))}
-                 </div>
-              </div>
-
-              {/* 3. Master Plan Preview */}
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                 <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan</p><button onClick={() => setActiveTab('masterplan')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button></div>
-                 <div className="space-y-4 flex-1">
-                    {plans.slice(0, 3).map(plan => (
-                        <div key={plan.id}>
-                            <div className="flex justify-between text-sm mb-1"><span className="font-bold text-slate-700 truncate w-40">{plan.title}</span><span className="text-slate-500 text-xs">{plan.progress}%</span></div>
-                            <div className="w-full bg-slate-100 rounded-full h-1.5"><div className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${plan.progress}%` }}></div></div>
-                        </div>
-                    ))}
-                 </div>
-              </div>
-            </div>
-
-            {/* Collapsible News Links */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-4 flex justify-between items-center bg-slate-50 cursor-pointer hover:bg-slate-100 transition" onClick={() => setIsDistOpen(!isDistOpen)}>
-                   <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500" /><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าวที่ลงแล้ว (News Links)</h3></div>
-                   {isDistOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                </div>
-                {isDistOpen && (
-                    <div className="p-4 max-h-60 overflow-y-auto custom-scrollbar bg-white">
-                        <button onClick={addPublishedLink} className="w-full text-xs bg-blue-50 text-blue-600 py-2 rounded border border-blue-100 font-bold mb-3 hover:bg-blue-100">+ เพิ่มลิงก์</button>
-                        <div className="space-y-2">
-                            {publishedLinks.map(link => (
-                                <div key={link.id} className="flex justify-between items-start p-2 border rounded hover:bg-slate-50 group">
-                                    <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline truncate w-full font-medium block">{link.title}</a>
-                                    <button onClick={() => deleteLink(link.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
+              {/* 2. Master Plan & Strategy Preview (Combined) */}
+              <div className="flex flex-col gap-6">
+                 {/* Strategy Preview */}
+                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex-1 flex flex-col">
+                    <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Strategy 4 แกน</p><button onClick={() => setActiveTab('strategy')} className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600 font-bold hover:bg-slate-200 transition">ดูทั้งหมด</button></div>
+                    <div className="grid grid-cols-2 gap-3 flex-1">
+                        {['solver', 'principles', 'defender', 'expert'].map((key) => {
+                            const count = groupedTasks[key]?.length || 0;
+                            return (
+                                <div key={key} className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center text-center cursor-pointer hover:border-blue-300 transition" onClick={() => setActiveTab('strategy')}>
+                                    <span className="text-[10px] font-bold uppercase text-slate-400 mb-1">{key}</span>
+                                    <span className="text-2xl font-black text-slate-700">{count}</span>
                                 </div>
-                            ))}
-                        </div>
+                            )
+                        })}
                     </div>
-                )}
-            </div>
-
-            {/* Strategy Preview (Full Width) */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                 <div className="flex justify-between items-center mb-3">
-                    <p className="text-slate-500 text-xs font-bold uppercase">Strategy Board Preview</p>
-                    <button onClick={() => setActiveTab('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ไปที่กระดาน →</button>
                  </div>
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {['solver', 'principles', 'defender', 'expert'].map((key) => {
-                        const items = groupedTasks[key] || [];
-                        return (
-                            <div key={key} className="bg-slate-50 p-3 rounded border border-slate-100 h-40 overflow-hidden relative">
-                                <div className="flex justify-between mb-2 border-b border-slate-100 pb-1">
-                                    <span className="text-[10px] font-bold uppercase text-slate-400">{key}</span>
-                                    <span className="text-[10px] font-bold bg-white px-1.5 rounded border border-slate-200">{items.length}</span>
-                                </div>
-                                {items.length > 0 ? (
-                                    <div className="space-y-1.5">
-                                        {items.slice(0, 4).map(t => (
-                                            <div key={t.id} className="flex items-center gap-2">
-                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${t.status === 'Done' ? 'bg-green-400' : 'bg-blue-400'}`}></div>
-                                                <p className="text-xs text-slate-600 truncate">{t.title}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : <p className="text-[10px] text-slate-300 text-center mt-4">- ว่าง -</p>}
+                 
+                 {/* Master Plan Preview */}
+                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan</p><button onClick={() => setActiveTab('masterplan')} className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600 font-bold hover:bg-slate-200 transition">ดูแผน</button></div>
+                    <div className="space-y-4">
+                        {plans.slice(0, 2).map(plan => (
+                            <div key={plan.id}>
+                                <div className="flex justify-between text-sm mb-1.5"><span className="font-bold text-slate-700 truncate w-40">{plan.title}</span><span className="text-slate-500 text-xs font-bold bg-slate-100 px-1.5 rounded">{plan.progress}%</span></div>
+                                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-1000" style={{ width: `${plan.progress}%` }}></div></div>
                             </div>
-                        )
-                    })}
+                        ))}
+                    </div>
                  </div>
+              </div>
+
+              {/* 3. Distribution Hub & Links */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col overflow-hidden">
+                 <div className="p-6 border-b border-slate-100 bg-gradient-to-b from-white to-slate-50/50">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-slate-800">Distribution Hub</h3>
+                        <button onClick={() => setActiveTab('assets')} className="text-xs text-blue-600 hover:underline font-medium">จัดการ →</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        {channels.slice(0,4).map(item => (
+                            <div key={item.id} className="bg-white p-3 rounded-xl border border-slate-100 text-center relative group shadow-sm">
+                                <h4 className="font-bold text-slate-600 text-[10px] uppercase truncate mb-1">{item.name}</h4>
+                                <span className="text-2xl font-black text-blue-600 block">{item.count || 0}</span>
+                                <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition absolute -top-3 inset-x-0">
+                                    <button onClick={() => updateDist(item.id, (item.count || 0) - 1)} className="bg-white shadow-md border rounded-full p-1 hover:text-red-600 z-10 hover:scale-110 transition"><Minus className="w-3 h-3" /></button>
+                                    <button onClick={() => updateDist(item.id, (item.count || 0) + 1)} className="bg-white shadow-md border rounded-full p-1 hover:text-blue-600 z-10 hover:scale-110 transition"><Plus className="w-3 h-3" /></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                 </div>
+                 
+                 <div className="flex-1 bg-white p-0 flex flex-col">
+                    <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition border-b border-slate-100" onClick={() => setIsDistOpen(!isDistOpen)}>
+                       <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500" /><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าว (News Links)</h3></div>
+                       {isDistOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                    </div>
+                    {isDistOpen && (
+                        <div className="p-4 max-h-60 overflow-y-auto custom-scrollbar bg-slate-50/50 flex-1">
+                            <button onClick={addPublishedLink} className="w-full text-xs bg-white text-blue-600 py-2.5 rounded-lg border border-blue-200 font-bold mb-3 hover:bg-blue-50 transition shadow-sm">+ เพิ่มลิงก์ใหม่</button>
+                            <div className="space-y-2">
+                                {publishedLinks.map(link => (
+                                    <div key={link.id} className="flex justify-between items-start p-2.5 border rounded-lg bg-white hover:border-blue-300 transition group shadow-sm">
+                                        <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline truncate w-full font-medium block pr-2">{link.title}</a>
+                                        <button onClick={() => deleteLink(link.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
+                                    </div>
+                                ))}
+                                {publishedLinks.length === 0 && <div className="text-center text-xs text-slate-400 py-4">ยังไม่มีลิงก์ข่าว</div>}
+                            </div>
+                        </div>
+                    )}
+                 </div>
+              </div>
             </div>
           </div>
         );
@@ -552,17 +574,28 @@ export default function TeamTaweeApp() {
       case 'strategy':
         return (
           <div className="h-full flex flex-col">
-            <PageHeader title="กระดานยุทธศาสตร์ 4 แกน" subtitle="Strategy Board & Tasks" action={
-                    <div className="flex gap-3">
-                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                             <Filter className="w-4 h-4 text-slate-500" />
-                             <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
-                        </div>
-                        <button onClick={() => setHideDone(!hideDone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div><h2 className="text-2xl font-bold text-slate-800 tracking-tight">กระดานยุทธศาสตร์</h2><p className="text-slate-500 text-sm mt-1">Strategy Board & Tasks</p></div>
+                <div className="flex items-center gap-3 self-end md:self-auto relative group/menu">
+                    {/* Mobile: Filter Menu */}
+                    <div className="md:hidden absolute right-0 top-10 bg-white shadow-xl rounded-xl p-4 border border-slate-200 z-20 hidden group-hover/menu:block w-64">
+                        <p className="text-xs font-bold text-slate-400 mb-2 uppercase">Filter</p>
+                        <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="w-full bg-slate-50 text-sm rounded-lg p-2 border mb-3"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
+                        <button onClick={() => setHideDone(!hideDone)} className="w-full text-left text-sm font-bold text-blue-600 py-2">{hideDone ? "Show Done Tasks" : "Hide Done Tasks"}</button>
                     </div>
-            } />
-            <div className="overflow-x-auto pb-4 flex-1">
-              <div className="flex gap-4 min-w-[1200px] h-full">
+                    <button className="md:hidden p-2 bg-white rounded-lg border shadow-sm"><MoreHorizontal className="w-5 h-5 text-slate-600" /></button>
+
+                    {/* Desktop: Filter Bar */}
+                    <div className="hidden md:flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                        <Filter className="w-4 h-4 text-slate-500" />
+                        <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none font-medium text-slate-700"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
+                    </div>
+                    <button onClick={() => setHideDone(!hideDone)} className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition shadow-sm ${hideDone ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button>
+                </div>
+            </div>
+
+            <div className="overflow-x-auto pb-4 flex-1 custom-scrollbar">
+              <div className="flex flex-col md:flex-row gap-4 min-w-full md:min-w-[1200px] h-full">
                 {[
                   { key: 'solver', title: '1. ผลงาน (Solver)', color: 'blue' },
                   { key: 'principles', title: '2. จุดยืน (Principles)', color: 'purple' },
@@ -570,18 +603,23 @@ export default function TeamTaweeApp() {
                   { key: 'expert', title: '4. ผู้เชี่ยวชาญ (Expert)', color: 'indigo' },
                   { key: 'backoffice', title: '5. หลังบ้าน (Back Office)', color: 'slate' }
                 ].map((col) => (
-                  <div key={col.key} className={`w-1/5 bg-${col.color}-50 rounded-xl p-4 border border-${col.color}-100 flex flex-col`}>
-                    <div className={`mb-3 pb-2 border-b border-${col.color}-200`}><h3 className={`font-bold text-${col.color}-900 truncate`}>{col.title}</h3></div>
-                    <div className="space-y-3 overflow-y-auto max-h-[600px] pr-1 custom-scrollbar">
+                  <div key={col.key} className={`w-full md:w-1/5 bg-${col.color}-50/50 rounded-2xl p-4 border border-${col.color}-100 flex flex-col shadow-sm`}>
+                    <div className={`mb-4 pb-2 border-b border-${col.color}-200/50 flex justify-between items-center`}>
+                        <h3 className={`font-black text-${col.color}-900 text-sm uppercase tracking-wide truncate`}>{col.title}</h3>
+                        <span className={`text-[10px] font-bold bg-white px-2 py-0.5 rounded-full text-${col.color}-600 shadow-sm`}>
+                            {groupedTasks[col.key]?.filter(t => (!hideDone || t.status !== 'Done')).length}
+                        </span>
+                    </div>
+                    <div className="space-y-3 overflow-y-auto max-h-[60vh] md:max-h-[70vh] pr-1 custom-scrollbar flex-1">
                       {groupedTasks[col.key]?.filter(t => (!hideDone || t.status !== 'Done') && (filterTag === 'All' || t.tag === filterTag)).map(task => (
-                        <div key={task.id} onClick={() => setEditingTask(task)} className={`bg-white p-3 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition cursor-pointer group relative ${task.status === 'Done' ? 'opacity-60 grayscale-[0.5]' : ''}`}>
-                          <div className="flex justify-between items-start mb-2"><span className={`text-[10px] font-bold text-${col.color}-600 bg-${col.color}-50 px-1.5 py-0.5 rounded`}>{task.tag}</span><StatusBadge status={task.status} /></div>
-                          <h4 className="text-sm font-medium text-slate-800 mb-2 group-hover:text-blue-600 leading-snug">{task.title}</h4>
-                          {task.deadline && <div className="flex items-center gap-1 text-[10px] text-red-500 font-bold mt-2"><Clock className="w-3 h-3" /> {task.deadline}</div>}
-                          {(task.updatedBy || task.createdBy) && <div className="mt-2 pt-2 border-t border-slate-50 text-[9px] text-slate-400 flex items-center gap-1"><User className="w-3 h-3" /> {task.updatedBy || task.createdBy}</div>}
+                        <div key={task.id} onClick={() => setEditingTask(task)} className={`bg-white p-4 rounded-xl shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer group relative ${task.status === 'Done' ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                          <div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-bold uppercase text-${col.color}-600 bg-${col.color}-50 px-2 py-1 rounded-md`}>{task.tag}</span><StatusBadge status={task.status} /></div>
+                          <h4 className="text-sm font-bold text-slate-800 mb-2 leading-snug group-hover:text-blue-700 transition-colors">{task.title}</h4>
+                          {task.deadline && <div className="flex items-center gap-1.5 text-[10px] text-red-500 font-bold mt-3 bg-red-50 inline-block px-2 py-1 rounded"><Clock className="w-3 h-3" /> {task.deadline}</div>}
+                          {(task.updatedBy || task.createdBy) && <div className="mt-3 pt-2 border-t border-slate-50 text-[9px] text-slate-400 flex items-center gap-1.5"><User className="w-3 h-3" /> {task.updatedBy || task.createdBy}</div>}
                         </div>
                       ))}
-                      <button onClick={() => addNewTask(col.key)} className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 border border-dashed border-slate-300 rounded-lg hover:bg-white transition flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> เพิ่มงาน</button>
+                      <button onClick={() => addNewTask(col.key)} className="w-full py-3 text-sm text-slate-400 hover:text-blue-600 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-bold"><Plus className="w-4 h-4" /> เพิ่มงาน</button>
                     </div>
                   </div>
                 ))}
@@ -591,32 +629,34 @@ export default function TeamTaweeApp() {
             {/* EDIT TASK MODAL */}
             {editingTask && (
                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-                  <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-                     <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-xl text-slate-800">แก้ไขรายละเอียดงาน</h3><button onClick={() => setEditingTask(null)}><X className="w-6 h-6 text-slate-400" /></button></div>
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all relative">
+                     <button onClick={() => setEditingTask(null)} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
+                     <h3 className="font-bold text-xl text-slate-800 mb-6">แก้ไขรายละเอียดงาน</h3>
                      <div className="space-y-5">
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">ชื่องาน</label><input type="text" value={editingTask.title} onChange={e => setEditingTask({...editingTask, title: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">ชื่องาน</label><input type="text" value={editingTask.title} onChange={e => setEditingTask({...editingTask, title: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none font-medium" /></div>
                         <div className="grid grid-cols-2 gap-4">
                            <div>
-                             <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Tag (เลือก/พิมพ์)</label>
+                             <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Tag</label>
                              <div className="relative">
-                                <input list="edit-tag-options" type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none pl-9" />
-                                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                                <input list="edit-tag-options" type="text" value={editingTask.tag} onChange={e => setEditingTask({...editingTask, tag: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none pl-9" />
+                                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
                                 <datalist id="edit-tag-options">{PRESET_TAGS.map(t=><option key={t} value={t}/>)}</datalist>
                              </div>
+                             <div className="mt-2 flex flex-wrap gap-1.5">{PRESET_TAGS.slice(0,4).map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag: t})} className="text-[9px] border px-2 py-0.5 rounded-full hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition">{t}</button>)}</div>
                            </div>
-                           <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">สถานะ</label><select value={editingTask.status} onChange={e => setEditingTask({...editingTask, status: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-white focus:border-blue-500 outline-none"><option value="To Do">To Do</option><option value="In Progress">In Progress</option><option value="In Review">In Review</option><option value="Done">Done</option></select></div>
+                           <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">สถานะ</label><select value={editingTask.status} onChange={e => setEditingTask({...editingTask, status: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-white focus:border-blue-500 outline-none"><option value="To Do">To Do</option><option value="In Progress">In Progress</option><option value="In Review">In Review</option><option value="Done">Done</option></select></div>
                         </div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Deadline</label><input type="date" value={editingTask.deadline || ""} onChange={e => setEditingTask({...editingTask, deadline: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" /></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Link ผลงาน</label><div className="flex gap-2"><input type="text" value={editingTask.link || ""} onChange={e => setEditingTask({...editingTask, link: e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none" placeholder="https://..." />{editingTask.link && <a href={editingTask.link} target="_blank" rel="noreferrer" className="p-2.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"><ExternalLink className="w-5 h-5" /></a>}</div></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Deadline</label><input type="date" value={editingTask.deadline || ""} onChange={e => setEditingTask({...editingTask, deadline: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none" /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Link ผลงาน</label><div className="flex gap-2"><input type="text" value={editingTask.link || ""} onChange={e => setEditingTask({...editingTask, link: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 outline-none" placeholder="https://..." />{editingTask.link && <a href={editingTask.link} target="_blank" rel="noreferrer" className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 border border-blue-100"><ExternalLink className="w-5 h-5" /></a>}</div></div>
                         
-                        <div className="text-[10px] text-slate-400 bg-slate-50 p-2 rounded border border-slate-100">
-                            <p>Created: {editingTask.createdBy}</p>
-                            {editingTask.updatedBy && <p>Last Update: {editingTask.updatedBy}</p>}
+                        <div className="text-[10px] text-slate-400 bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between">
+                            <span>Created: {editingTask.createdBy}</span>
+                            <span>Last Update: {editingTask.updatedBy || '-'}</span>
                         </div>
 
-                        <div className="flex justify-between pt-4 border-t border-slate-100">
-                             <button onClick={async () => { if(confirm("ลบงานนี้?")) { setIsGlobalLoading(true); await deleteDoc(doc(db, "tasks", editingTask.id)); setIsGlobalLoading(false); setEditingTask(null); }}} className="text-red-500 text-sm font-bold hover:bg-red-50 px-3 py-2 rounded-lg transition-colors flex items-center gap-1"><Trash2 className="w-4 h-4"/> ลบงาน</button>
-                             <button onClick={() => saveTaskChange(editingTask)} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-2"><Save className="w-4 h-4" /> บันทึก</button>
+                        <div className="flex justify-between pt-6 border-t border-slate-100 gap-4">
+                             <button onClick={async () => { if(confirm("ลบงานนี้?")) { setIsGlobalLoading(true); await deleteDoc(doc(db, "tasks", editingTask.id)); setIsGlobalLoading(false); setEditingTask(null); }}} className="text-red-500 text-sm font-bold hover:bg-red-50 px-4 py-3 rounded-xl transition-colors flex items-center gap-2"><Trash2 className="w-4 h-4"/> ลบงาน</button>
+                             <button onClick={() => saveTaskChange(editingTask)} className="flex-1 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all py-3 flex items-center justify-center gap-2 active:scale-95"><Save className="w-4 h-4" /> บันทึกการแก้ไข</button>
                         </div>
                      </div>
                   </div>
@@ -628,37 +668,35 @@ export default function TeamTaweeApp() {
       case 'masterplan':
         return (
           <div className="space-y-6">
-            <PageHeader title="แผนงานหลัก (Master Plan)" subtitle="Long-term Strategic Roadmap" action={<button onClick={addPlan} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition flex items-center gap-2"><Plus className="w-4 h-4" /> สร้างแผนใหม่</button>} />
+            <PageHeader title="แผนงานหลัก (Master Plan)" subtitle="Long-term Strategic Roadmap" action={<button onClick={addPlan} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition flex items-center gap-2 shadow-lg shadow-blue-200"><Plus className="w-4 h-4" /> สร้างแผนใหม่</button>} />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {plans.map((plan) => {
                 const sortedItems = [...(plan.items || [])].sort((a, b) => Number(a.completed) - Number(b.completed));
                 return (
-                <div key={plan.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition group">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-2 group/title cursor-pointer" onClick={() => editPlanTitle(plan)}><h3 className="font-bold text-lg text-slate-800">{plan.title}</h3><Edit2 className="w-4 h-4 text-slate-300 opacity-0 group-hover/title:opacity-100 hover:text-blue-600" /></div>
-                    <button onClick={async () => { if(confirm("ลบแผนนี้?")) await deleteDoc(doc(db, "plans", plan.id)); }} className="text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                <div key={plan.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition group">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="flex items-center gap-2 group/title cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition" onClick={() => editPlanTitle(plan)}><h3 className="font-bold text-lg text-slate-800">{plan.title}</h3><Edit2 className="w-4 h-4 text-slate-300 opacity-0 group-hover/title:opacity-100 hover:text-blue-600" /></div>
+                    <button onClick={async () => { if(confirm("ลบแผนนี้?")) await deleteDoc(doc(db, "plans", plan.id)); }} className="text-slate-300 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition"><Trash2 className="w-4 h-4" /></button>
                   </div>
-                  <div className="mb-4"><div className="flex justify-between text-xs text-slate-500 mb-1"><span>ความคืบหน้า</span><span>{plan.progress || 0}%</span></div><div className="w-full bg-slate-100 rounded-full h-2"><div className="bg-blue-600 h-2 rounded-full transition-all duration-500" style={{ width: `${plan.progress || 0}%` }}></div></div></div>
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Action Items:</h4>
-                    <ul className="space-y-2">
+                  <div className="mb-6"><div className="flex justify-between text-xs text-slate-500 mb-1 font-bold"><span>PROGRESS</span><span>{plan.progress || 0}%</span></div><div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden"><div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full transition-all duration-1000 shadow-sm" style={{ width: `${plan.progress || 0}%` }}></div></div></div>
+                  <div className="bg-slate-50/50 rounded-xl p-1 border border-slate-100">
+                    <ul className="space-y-1">
                       {sortedItems.map((item, idx) => {
                          const originalIndex = plan.items.indexOf(item); 
                          return (
-                          <li key={idx} className={`flex items-center justify-between gap-2 text-sm p-1 rounded transition group/item hover:bg-white ${item.completed ? 'opacity-40 order-last' : ''}`}>
-                            <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => togglePlanItem(plan.id, originalIndex, plan.items)}>
-                              {item.completed ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" /> : <Circle className="w-5 h-5 text-slate-300 hover:text-blue-400 flex-shrink-0" />}
-                              <span className={item.completed ? "" : "text-slate-700"}>{item.text}</span>
+                          <li key={idx} className={`flex items-center justify-between gap-3 text-sm p-2 rounded-lg transition group/item hover:bg-white hover:shadow-sm ${item.completed ? 'opacity-50' : ''}`}>
+                            <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => togglePlanItem(plan.id, originalIndex, plan.items)}>
+                              {item.completed ? <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white shadow-sm"><CheckCircle2 className="w-3.5 h-3.5" /></div> : <div className="w-5 h-5 border-2 border-slate-300 rounded-full hover:border-blue-400 transition"></div>}
+                              <span className={`font-medium ${item.completed ? "line-through text-slate-400" : "text-slate-700"}`}>{item.text}</span>
                             </div>
-                             {/* FIX: Separate buttons to avoid overlap issues */}
-                             <div className="flex gap-2 opacity-100 z-10">
-                                <button onClick={(e) => { e.stopPropagation(); editPlanItem(plan.id, originalIndex, plan.items); }} className="text-slate-400 hover:text-blue-600 p-1.5 rounded hover:bg-blue-50"><Edit2 className="w-3.5 h-3.5" /></button>
-                                <button onClick={(e) => { e.stopPropagation(); removePlanItem(plan.id, originalIndex, plan.items); }} className="text-slate-400 hover:text-red-500 p-1.5 rounded hover:bg-red-50"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <div className="flex gap-1 opacity-100">
+                                <button onClick={(e) => { e.stopPropagation(); editPlanItem(plan.id, originalIndex, plan.items); }} className="text-slate-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition"><Edit2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={(e) => { e.stopPropagation(); removePlanItem(plan.id, originalIndex, plan.items); }} className="text-slate-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50 transition"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
                           </li>
                          );
                       })}
-                      <li className="pt-2"><button onClick={() => openFormModal("เพิ่มรายการ", [{key:'text', label:'ชื่อรายการ'}], async(d)=> { const newItems=[...(plan.items||[]), {text:d.text, completed:false}]; await updateDoc(doc(db,"plans",plan.id), {items:newItems, progress:Math.round((newItems.filter(i=>i.completed).length/newItems.length)*100)}) })} className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1">+ เพิ่มรายการ</button></li>
+                      <li className="pt-2"><button onClick={() => openFormModal("เพิ่มรายการ", [{key:'text', label:'ชื่อรายการ'}], async(d)=> { const newItems=[...(plan.items||[]), {text:d.text, completed:false}]; await updateDoc(doc(db,"plans",plan.id), {items:newItems, progress:Math.round((newItems.filter(i=>i.completed).length/newItems.length)*100)}) })} className="w-full text-center text-xs text-blue-600 font-bold hover:bg-blue-50 py-2 rounded-lg transition border border-dashed border-blue-200">+ เพิ่มรายการ</button></li>
                     </ul>
                   </div>
                 </div>
@@ -670,36 +708,42 @@ export default function TeamTaweeApp() {
       case 'rapidresponse': 
         return (
             <div className="space-y-6">
-                <PageHeader title="ปฏิบัติการด่วน (Rapid Response)" subtitle="Agile Response Unit" action={<button onClick={createUrgentCase} className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-700 shadow-lg transition whitespace-nowrap flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> เปิดเคสด่วน (New Case)</button>} />
+                <PageHeader title="ปฏิบัติการด่วน (Rapid Response)" subtitle="Agile Response Unit" action={<button onClick={createUrgentCase} className="bg-red-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition whitespace-nowrap flex items-center gap-2 active:scale-95"><AlertTriangle className="w-5 h-5" /> เปิดเคสด่วน (New Case)</button>} />
                 
-                <div className="flex gap-6">
-                    {/* Left: SOP Guide (Static) */}
-                    <div className="w-1/3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-fit">
-                        <h3 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><FileText className="w-5 h-5 text-slate-500" /> SOP Guide (คู่มือ)</h3>
-                        <div className="space-y-3 text-sm text-slate-600">
+                <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Left: SOP Guide (Mobile Accordion / Desktop Fixed) */}
+                    <div className={`lg:w-1/3 bg-white rounded-2xl border border-slate-200 shadow-sm h-fit overflow-hidden transition-all ${isSopOpen ? 'max-h-96' : 'max-h-16 lg:max-h-full'}`}>
+                        <div className="p-4 lg:p-6 flex justify-between items-center cursor-pointer lg:cursor-default bg-slate-50 lg:bg-white" onClick={() => setIsSopOpen(!isSopOpen)}>
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2"><FileText className="w-5 h-5 text-slate-500" /> SOP Guide (คู่มือ)</h3>
+                            <ChevronDown className={`w-5 h-5 text-slate-400 lg:hidden transform transition ${isSopOpen ? 'rotate-180' : ''}`} />
+                        </div>
+                        <div className="p-6 pt-0 space-y-4 text-sm text-slate-600 border-t border-slate-100 lg:border-none">
                             {SOP_GUIDE.map((step, i) => (
-                                <p key={i} className="leading-relaxed">{step}</p>
+                                <div key={i} className="flex gap-3">
+                                    <span className="font-bold text-blue-600 bg-blue-50 w-6 h-6 flex items-center justify-center rounded-full text-xs flex-shrink-0">{i+1}</span>
+                                    <p className="leading-relaxed">{step.substring(3)}</p>
+                                </div>
                             ))}
                         </div>
                     </div>
 
                     {/* Right: Urgent Cases Grid */}
-                    <div className="w-2/3 space-y-6">
+                    <div className="lg:w-2/3 space-y-6">
                         {urgentTasks.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {urgentTasks.map(task => (
-                                <div key={task.id} className="bg-white p-4 rounded-xl border-l-4 border-red-500 shadow-sm hover:shadow-md transition cursor-pointer" onClick={() => setUrgentModal(task)}>
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">URGENT</span>
+                                <div key={task.id} className="bg-white p-5 rounded-2xl border-l-[6px] border-red-500 shadow-sm hover:shadow-md hover:translate-y-[-2px] transition-all cursor-pointer group" onClick={() => setUrgentModal(task)}>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded shadow-sm animate-pulse">URGENT CASE</span>
                                         <StatusBadge status={task.status} />
                                     </div>
-                                    <h3 className="font-bold text-slate-800 mb-2 leading-tight">{task.title}</h3>
-                                    {task.deadline && <p className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Clock className="w-3 h-3"/> Deadline: {task.deadline}</p>}
-                                    <div className="mt-3 pt-3 border-t border-slate-100">
-                                        <p className="text-xs font-bold text-slate-500 mb-1">Checklist:</p>
-                                        <div className="flex gap-1">
+                                    <h3 className="font-bold text-slate-800 mb-3 leading-tight text-lg group-hover:text-red-600 transition">{task.title}</h3>
+                                    {task.deadline && <p className="text-xs text-slate-500 mb-4 flex items-center gap-1.5 bg-slate-50 inline-block px-2 py-1 rounded"><Clock className="w-3.5 h-3.5"/> Deadline: {task.deadline}</p>}
+                                    <div className="pt-3 border-t border-slate-100">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Progress Checklist</p>
+                                        <div className="flex gap-1.5 h-2">
                                             {(task.sop || []).map((s, i) => (
-                                            <div key={i} className={`h-1.5 flex-1 rounded-full ${s.done ? 'bg-green-500' : 'bg-slate-200'}`}></div>
+                                            <div key={i} className={`flex-1 rounded-full transition-all ${s.done ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-slate-100'}`}></div>
                                             ))}
                                         </div>
                                     </div>
@@ -707,8 +751,10 @@ export default function TeamTaweeApp() {
                             ))}
                             </div>
                         ) : (
-                            <div className="p-10 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400 bg-slate-50">
-                                ยังไม่มีเคสด่วนขณะนี้
+                            <div className="p-16 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 bg-slate-50/50 flex flex-col items-center justify-center">
+                                <div className="bg-white p-4 rounded-full shadow-sm mb-3"><CheckCircle2 className="w-8 h-8 text-green-500" /></div>
+                                <p className="font-medium">สถานการณ์ปกติ</p>
+                                <p className="text-xs mt-1 opacity-70">ยังไม่มีเคสด่วนที่ต้องดำเนินการ</p>
                             </div>
                         )}
                     </div>
@@ -717,41 +763,41 @@ export default function TeamTaweeApp() {
                 {/* Urgent Modal (SOP Manager) */}
                 {urgentModal && (
                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-                         <div className="flex justify-between items-center mb-4">
+                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
+                         <button onClick={() => setUrgentModal(null)} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full"><X className="w-6 h-6 text-slate-400" /></button>
+                         <div className="flex justify-between items-center mb-6 pt-2">
                             <h3 className="text-xl font-bold text-red-600 flex items-center gap-2"><AlertTriangle className="w-6 h-6"/> จัดการเคสด่วน</h3>
-                            <button onClick={() => setUrgentModal(null)}><X className="w-6 h-6 text-slate-400" /></button>
                          </div>
                          
-                         <div className="space-y-4 mb-6">
-                            <div><label className="text-xs font-bold text-slate-500 uppercase">หัวข้อ</label><input type="text" value={urgentModal.title} onChange={(e)=>setUrgentModal({...urgentModal, title:e.target.value})} className="w-full border-b-2 border-slate-100 focus:border-red-500 outline-none py-1 font-bold text-slate-800" /></div>
+                         <div className="space-y-5 mb-8">
+                            <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">หัวข้อ</label><input type="text" value={urgentModal.title} onChange={(e)=>setUrgentModal({...urgentModal, title:e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 font-bold text-slate-800 focus:border-red-500 outline-none" /></div>
                             <div className="grid grid-cols-2 gap-4">
-                               <div><label className="text-xs font-bold text-slate-500 uppercase">สถานะ</label><select value={urgentModal.status} onChange={(e)=>setUrgentModal({...urgentModal, status:e.target.value})} className="w-full border rounded p-2 text-sm"><option>To Do</option><option>In Progress</option><option>Done</option></select></div>
-                               <div><label className="text-xs font-bold text-slate-500 uppercase">Link ผลงาน</label><input type="text" value={urgentModal.link} onChange={(e)=>setUrgentModal({...urgentModal, link:e.target.value})} className="w-full border rounded p-2 text-sm" /></div>
+                               <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">สถานะ</label><select value={urgentModal.status} onChange={(e)=>setUrgentModal({...urgentModal, status:e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-sm bg-white focus:border-red-500 outline-none"><option>To Do</option><option>In Progress</option><option>Done</option></select></div>
+                               <div><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Link ผลงาน</label><input type="text" value={urgentModal.link} onChange={(e)=>setUrgentModal({...urgentModal, link:e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-2.5 text-sm focus:border-red-500 outline-none" /></div>
                             </div>
                          </div>
 
-                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                            <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2"><CheckSquare className="w-4 h-4"/> SOP Checklist</h4>
-                            <div className="space-y-2">
+                         <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
+                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide"><CheckSquare className="w-4 h-4 text-blue-500"/> SOP Checklist</h4>
+                            <div className="space-y-3">
                                {(urgentModal.sop || []).map((step, idx) => (
-                                  <div key={idx} className="flex items-start gap-3 p-2 hover:bg-white rounded cursor-pointer transition" onClick={() => {
+                                  <div key={idx} className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition border ${step.done ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 hover:border-blue-200'}`} onClick={() => {
                                       const newSop = [...urgentModal.sop];
                                       newSop[idx].done = !newSop[idx].done;
                                       setUrgentModal({...urgentModal, sop: newSop});
                                   }}>
-                                     <div className={`w-5 h-5 rounded border flex items-center justify-center ${step.done ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 bg-white'}`}>
+                                     <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition ${step.done ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 bg-white'}`}>
                                         {step.done && <CheckCircle2 className="w-3.5 h-3.5" />}
                                      </div>
-                                     <span className={`text-sm ${step.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{step.text}</span>
+                                     <span className={`text-sm font-medium ${step.done ? 'text-green-700 line-through opacity-70' : 'text-slate-700'}`}>{step.text}</span>
                                   </div>
                                ))}
                             </div>
                          </div>
                          
-                         <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                             <button onClick={async () => { if(confirm("ปิดเคสและลบงานนี้?")) { setIsGlobalLoading(true); await deleteDoc(doc(db, "tasks", urgentModal.id)); setIsGlobalLoading(false); setUrgentModal(null); }}} className="text-red-500 text-sm font-bold hover:bg-red-50 px-3 py-2 rounded">ลบเคส</button>
-                             <button onClick={() => saveUrgentCase(urgentModal)} className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-700 shadow">บันทึกความคืบหน้า</button>
+                         <div className="flex justify-between mt-8 pt-4 border-t border-slate-100">
+                             <button onClick={async () => { if(confirm("ปิดเคสและลบงานนี้?")) { setIsGlobalLoading(true); await deleteDoc(doc(db, "tasks", urgentModal.id)); setIsGlobalLoading(false); setUrgentModal(null); }}} className="text-red-500 text-sm font-bold hover:bg-red-50 px-4 py-3 rounded-xl transition flex items-center gap-2"><Trash2 className="w-4 h-4"/> ลบเคส</button>
+                             <button onClick={() => saveUrgentCase(urgentModal)} className="bg-red-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-100 transition transform active:scale-95">บันทึกความคืบหน้า</button>
                          </div>
                       </div>
                    </div>
@@ -763,34 +809,71 @@ export default function TeamTaweeApp() {
         return (
             <div className="space-y-6">
                 <PageHeader title="คลังอาวุธ (Assets)" subtitle="Media Database & Channels" />
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div><h3 className="text-lg font-bold text-blue-900 flex items-center gap-2"><Database className="w-5 h-5" /> Team Tawee's Google Drive</h3><p className="text-sm text-blue-700/80">พื้นที่เก็บไฟล์ต้นฉบับ รูปภาพ คลิปดิบ และเอกสารราชการ</p></div>
-                    <a href="https://drive.google.com/drive/folders/0AHTNNQ96Wgq-Uk9PVA" target="_blank" rel="noreferrer" className="bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-lg font-bold shadow-sm flex items-center gap-2"><ExternalLink className="w-4 h-4" /> เปิด Drive</a>
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 rounded-2xl shadow-lg text-white flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-10"><Database className="w-64 h-64" /></div>
+                    <div className="relative z-10">
+                        <h3 className="text-2xl font-black flex items-center gap-3 mb-2"><Database className="w-8 h-8" /> Team Tawee's Google Drive</h3>
+                        <p className="text-blue-100 font-medium">พื้นที่เก็บไฟล์ต้นฉบับ รูปภาพ คลิปดิบ และเอกสารราชการทั้งหมด</p>
+                    </div>
+                    <a href="https://drive.google.com/drive/folders/0AHTNNQ96Wgq-Uk9PVA" target="_blank" rel="noreferrer" className="relative z-10 bg-white text-blue-700 border-none px-6 py-3 rounded-xl font-bold shadow-xl hover:bg-blue-50 transition flex items-center gap-2 active:scale-95"><ExternalLink className="w-5 h-5" /> เปิด Google Drive</a>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-8">
                     {/* Channels Management */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800">จัดการช่องทางเผยแพร่ (Channels)</h3><button onClick={addChannel} className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full hover:bg-blue-700">+ เพิ่มช่องทาง</button></div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-slate-800 text-lg">จัดการช่องทางเผยแพร่ (Channels)</h3><button onClick={addChannel} className="text-xs bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-bold transition">+ เพิ่มช่องทาง</button></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {channels.map(c => (
-                                <div key={c.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 group cursor-pointer" onClick={() => updateChannel(c)}>
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <div className="bg-blue-50 p-2 rounded text-blue-600"><Globe className="w-4 h-4" /></div>
-                                        <div className="truncate"><p className="text-sm font-bold text-slate-700 truncate">{c.name}</p><span className="text-[10px] text-slate-400">{c.type}</span></div>
+                                <div key={c.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-md transition group cursor-pointer bg-white" onClick={() => updateChannel(c)}>
+                                    <div className="flex items-center gap-4 overflow-hidden">
+                                        <div className="bg-slate-50 p-3 rounded-lg text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition"><Globe className="w-6 h-6" /></div>
+                                        <div className="truncate">
+                                            <p className="font-bold text-slate-700 truncate group-hover:text-blue-700 transition">{c.name}</p>
+                                            <span className="text-xs font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-500">{c.type}</span>
+                                        </div>
                                     </div>
-                                    <button onClick={(e) => { e.stopPropagation(); deleteChannel(c.id); }} className="text-slate-300 hover:text-red-500 p-1"><Trash2 className="w-4 h-4" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); deleteChannel(c.id); }} className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5" /></button>
                                 </div>
                             ))}
                         </div>
                     </div>
 
                     {/* Media List */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800">ฐานข้อมูลสื่อมวลชน (Media List)</h3><button onClick={addMedia} className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full hover:bg-blue-700">+ เพิ่มรายชื่อ</button></div>
-                        <div className="overflow-x-auto max-h-96 custom-scrollbar">
-                            <table className="w-full text-sm text-left"><thead className="text-xs text-slate-500 uppercase bg-slate-50"><tr><th className="px-3 py-2">ชื่อ/สังกัด</th><th className="px-3 py-2">ติดต่อ</th><th className="px-3 py-2 text-center">Quick Contact</th><th className="px-3 py-2"></th></tr></thead>
-                                <tbody className="divide-y divide-slate-100">{media.map(c => (<tr key={c.id} className="hover:bg-slate-50"><td className="px-3 py-3 font-medium text-slate-700">{c.name}<span className="block text-[10px] text-slate-400">{c.type}</span></td><td className="px-3 py-3 text-xs text-slate-500"><div><Phone className="w-3 h-3 inline"/> {c.phone}</div><div><MessageCircle className="w-3 h-3 inline text-green-600"/> {c.line}</div></td><td className="px-3 py-3 text-center"><input type="checkbox" checked={c.active} onChange={() => toggleMediaActive(c)} className="cursor-pointer" /></td><td className="px-3 py-3 text-right"><button onClick={() => deleteMedia(c.id)} className="text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button></td></tr>))}</tbody>
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-slate-800 text-lg">ฐานข้อมูลสื่อมวลชน (Media List)</h3><button onClick={addMedia} className="text-xs bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-bold transition">+ เพิ่มรายชื่อ</button></div>
+                        <div className="overflow-x-auto max-h-[500px] custom-scrollbar rounded-xl border border-slate-200">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="px-6 py-4 font-bold">ชื่อ/สังกัด</th>
+                                        <th className="px-6 py-4 font-bold">ติดต่อ</th>
+                                        <th className="px-6 py-4 font-bold text-center">Quick Contact</th>
+                                        <th className="px-6 py-4 font-bold text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {media.map(c => (
+                                        <tr key={c.id} className="hover:bg-slate-50 transition bg-white">
+                                            <td className="px-6 py-4 font-medium text-slate-700">
+                                                {c.name}
+                                                <span className="block text-[10px] font-bold text-blue-600 bg-blue-50 inline-block px-1.5 rounded mt-1 w-fit">{c.type}</span>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs text-slate-500 space-y-1">
+                                                <div className="flex items-center gap-2"><Phone className="w-3 h-3"/> {c.phone}</div>
+                                                <div className="flex items-center gap-2 text-green-600"><MessageCircle className="w-3 h-3"/> {c.line}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <div className="relative inline-block w-10 h-5 align-middle select-none transition duration-200 ease-in">
+                                                    <input type="checkbox" checked={c.active} onChange={() => toggleMediaActive(c)} className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 ease-in-out transform checked:translate-x-5 checked:border-blue-600" />
+                                                    <label className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-300 ${c.active ? 'bg-blue-600' : 'bg-slate-300'}`}></label>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button onClick={() => deleteMedia(c.id)} className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
                             </table>
                         </div>
                     </div>
