@@ -11,12 +11,20 @@ import {
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, Eye, FileText, Share2, Plus, 
-  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, Search, Shield, FileClock
+  Minus, Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, Phone, LogOut, User, Lock, Camera, Mail, AlertTriangle, Smartphone, MessageCircle, Globe, Loader2, CheckSquare, Tag, Search, Shield, FileClock, Check, ArrowDownWideNarrow
 } from 'lucide-react';
 
 // --- GLOBAL CONSTANTS ---
-const PRESET_TAGS = ["Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis"];
+// 1. Updated Tags
+const PRESET_TAGS = [
+  "Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis",
+  "Quote", "Infographic", "Single Photo"
+];
+
+// 2. Asset Types
 const ASSET_TYPES = ["Own media", "Partner", "NEWS Paper", "NEWS Website", "Fan Club (own)"];
+
+// 3. Task Statuses
 const TASK_STATUSES = ["To Do", "In Progress", "In Review", "Done", "Idea", "Waiting list", "Canceled"];
 
 const DEFAULT_SOP = [
@@ -75,9 +83,9 @@ const SearchModal = ({ isOpen, onClose, data, onNavigate }) => {
   if (!isOpen) return null;
 
   const results = query.length < 2 ? [] : [
-    ...(data.tasks || []).filter(t => t.title?.toLowerCase().includes(query.toLowerCase())).map(t => ({ ...t, type: 'Task', label: t.title, sub: t.status })),
-    ...(data.media || []).filter(m => m.name?.toLowerCase().includes(query.toLowerCase())).map(m => ({ ...m, type: 'Media', label: m.name, sub: m.phone })),
-    ...(data.channels || []).filter(c => c.name?.toLowerCase().includes(query.toLowerCase())).map(c => ({ ...c, type: 'Channel', label: c.name, sub: c.url })),
+    ...data.tasks.filter(t => t.title?.toLowerCase().includes(query.toLowerCase())).map(t => ({ ...t, type: 'Task', label: t.title, sub: t.status })),
+    ...data.media.filter(m => m.name?.toLowerCase().includes(query.toLowerCase())).map(m => ({ ...m, type: 'Media', label: m.name, sub: m.phone })),
+    ...data.channels.filter(c => c.name?.toLowerCase().includes(query.toLowerCase())).map(c => ({ ...c, type: 'Channel', label: c.name, sub: c.url })),
   ];
 
   return (
@@ -310,6 +318,7 @@ export default function TeamTaweeApp() {
 
   const [hideDone, setHideDone] = useState(false);
   const [filterTag, setFilterTag] = useState('All');
+  const [sortOrder, setSortOrder] = useState('newest'); 
   const [isGlobalLoading, setIsGlobalLoading] = useState(false); 
   const [isDataLoading, setIsDataLoading] = useState(true); 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -348,31 +357,23 @@ export default function TeamTaweeApp() {
 
   useEffect(() => {
     if (!currentUser) return;
-    
-    // 1. Define Unsubscribe Functions
-    let unsubLinks = () => {};
-    let unsubUsers = () => {};
-    let unsubLogs = () => {};
-
     const unsubTasks = onSnapshot(collection(db, "tasks"), (s) => setTasks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubPlans = onSnapshot(collection(db, "plans"), (s) => setPlans(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubMedia = onSnapshot(collection(db, "media"), (s) => setMedia(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubChannels = onSnapshot(collection(db, "channels"), (s) => setChannels(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    
-    // Safe Try-Catch for potentially missing collections
     try {
-      unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    } catch(e) { console.log("Links init skipped"); }
-
-    if (userProfile?.role === 'Admin') {
-      try {
+      const unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+      let unsubUsers = () => {}, unsubLogs = () => {};
+      if (userProfile?.role === 'Admin') {
           unsubUsers = onSnapshot(collection(db, "user_profiles"), (s) => setUsersList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
           unsubLogs = onSnapshot(query(collection(db, "logs"), orderBy("createdAt", "desc")), (s) => setActivityLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-      } catch(e) { console.log("Admin init skipped"); }
+      }
+      setIsDataLoading(false);
+      return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); unsubUsers(); unsubLogs(); };
+    } catch(e) {
+      setIsDataLoading(false);
+      return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); };
     }
-
-    setIsDataLoading(false);
-    return () => { unsubTasks(); unsubPlans(); unsubMedia(); unsubChannels(); unsubLinks(); unsubUsers(); unsubLogs(); };
   }, [currentUser, userProfile]);
 
   const logActivity = async (action, details) => { try { await addDoc(collection(db, "logs"), { action, details, user: currentUser.displayName || currentUser.email, createdAt: serverTimestamp() }); } catch(e) {} };
@@ -385,9 +386,9 @@ export default function TeamTaweeApp() {
   const saveUrgentCase = async (task) => { if(!task.id)return; setIsGlobalLoading(true); try{ await updateDoc(doc(db,"tasks",task.id), {title:task.title||"", status:task.status||"To Do", link:task.link||"", sop:task.sop||[], updatedBy:currentUser.displayName, updatedAt:new Date().toISOString()}); logActivity("Update Urgent", task.title); setUrgentModal(null); }catch(e){alert(e.message);} setIsGlobalLoading(false); };
   
   const addNewTask = (key) => openFormModal("เพิ่มงานใหม่", [{key:'title', label:'ชื่องาน'}, {key:'tag', label:'Tag'}, {key:'role', label:'ผู้รับผิดชอบ'}, {key:'status', label:'สถานะ', type:'select', options: TASK_STATUSES}, {key:'deadline', label:'กำหนดส่ง', type:'date'}, {key:'link', label:'Link ผลงาน'}], async(d)=>{ await addDoc(collection(db,"tasks"), {...d, status:d.status||"To Do", link:d.link||"", columnKey:key, createdBy:currentUser.displayName, createdAt:new Date().toISOString()}); logActivity("Add Task", d.title); });
-  const addChannel = () => openFormModal("เพิ่มช่องทาง", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES}, {key:'url', label:'URL'}], async(d)=>{ await addDoc(collection(db,"channels"), {...d, count:0}); logActivity("Add Channel", d.name); });
+  const addChannel = () => openFormModal("เพิ่มช่องทาง", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:'Own media'}, {key:'url', label:'URL'}], async(d)=>{ await addDoc(collection(db,"channels"), {...d, count:0}); logActivity("Add Channel", d.name); });
   const updateChannel = (c) => openFormModal("แก้ไขช่องทาง", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:c.type}, {key:'url', label:'URL', defaultValue:c.url}], async(d)=>{ await updateDoc(doc(db,"channels",c.id), d); logActivity("Edit Channel", c.name); });
-  const addMedia = () => openFormModal("เพิ่มสื่อ", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES}, {key:'phone', label:'เบอร์'}, {key:'line', label:'Line'}], async(d)=>{ await addDoc(collection(db,"media"), {...d, active:true}); logActivity("Add Media", d.name); });
+  const addMedia = () => openFormModal("เพิ่มสื่อ", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:'NEWS Website'}, {key:'phone', label:'เบอร์'}, {key:'line', label:'Line'}], async(d)=>{ await addDoc(collection(db,"media"), {...d, active:true}); logActivity("Add Media", d.name); });
   const editMedia = (c) => openFormModal("แก้ไขสื่อ", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:c.type}, {key:'phone', label:'เบอร์', defaultValue:c.phone}, {key:'line', label:'Line', defaultValue:c.line}], async(d)=>{ await updateDoc(doc(db,"media",c.id), d); logActivity("Edit Media", c.name); });
   const addPublishedLink = () => openFormModal("เพิ่มลิงก์ข่าว", [{key:'title', label:'หัวข้อ'}, {key:'url', label:'URL'}, {key:'platform', label:'Platform'}], async(d)=>{ await addDoc(collection(db,"published_links"), {...d, createdBy:currentUser.displayName, createdAt:serverTimestamp()}); logActivity("Add Link", d.title); });
   
@@ -404,11 +405,24 @@ export default function TeamTaweeApp() {
   const addPlan = () => openFormModal("สร้างแผนใหม่", [{key:'title', label:'ชื่อแผน'}], async(d)=> { await addDoc(collection(db,"plans"), {...d, progress:0, items:[]}); logActivity("Create Plan", d.title); });
   const createUrgentCase = () => openFormModal("เปิดเคสด่วน", [{key:'title', label:'หัวข้อ'}, {key:'deadline', label:'เสร็จภายใน', type:'date'}], async(d) => { await addDoc(collection(db,"tasks"), { ...d, status:"To Do", role:"Hunter", tag:"Urgent", link:"", columnKey:"defender", sop:DEFAULT_SOP, createdBy:currentUser.displayName, createdAt:new Date().toISOString() }); alert("เปิดเคสแล้ว!"); logActivity("Open Urgent", d.title); });
 
-  // Admin Actions
   const updateUserStatus = (uid, status, role) => { updateDoc(doc(db, "user_profiles", uid), { status, role }); logActivity("Admin Update", `${uid} -> ${status}`); };
 
+  // --- Sorting Logic ---
+  const sortTasks = (taskList) => {
+    if(!taskList) return [];
+    return [...taskList].sort((a, b) => {
+       if(sortOrder === 'newest') return (new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+       if(sortOrder === 'oldest') return (new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+       if(sortOrder === 'deadline') {
+           if(!a.deadline) return 1; if(!b.deadline) return -1;
+           return new Date(a.deadline) - new Date(b.deadline);
+       }
+       return 0;
+    });
+  };
+
   // Render Data
-  const groupedTasks = { solver: tasks.filter(t => t.columnKey === 'solver'), principles: tasks.filter(t => t.columnKey === 'principles'), defender: tasks.filter(t => t.columnKey === 'defender'), expert: tasks.filter(t => t.columnKey === 'expert'), backoffice: tasks.filter(t => t.columnKey === 'backoffice') };
+  const groupedTasks = { solver: sortTasks(tasks.filter(t => t.columnKey === 'solver')), principles: sortTasks(tasks.filter(t => t.columnKey === 'principles')), defender: sortTasks(tasks.filter(t => t.columnKey === 'defender')), expert: sortTasks(tasks.filter(t => t.columnKey === 'expert')), backoffice: sortTasks(tasks.filter(t => t.columnKey === 'backoffice')) };
   const urgentTasks = tasks.filter(t => t.tag === 'Urgent');
   const allTags = ['All', ...new Set([...PRESET_TAGS, ...tasks.map(t => t.tag)].filter(Boolean))];
 
@@ -417,7 +431,7 @@ export default function TeamTaweeApp() {
     { id: 'strategy', title: 'กระดาน 4 แกน', subtitle: 'Strategy', icon: Megaphone },
     { id: 'masterplan', title: 'แผนงานหลัก', subtitle: 'Master Plan', icon: Map },
     { id: 'rapidresponse', title: 'ปฏิบัติการด่วน', subtitle: 'Rapid Response', icon: Zap, color: 'text-red-500' },
-    { id: 'assets', title: 'คลังอาวุธ', subtitle: 'Assets', icon: Database },
+    { id: 'assets', title: 'คลังข้อมูลสื่อ', subtitle: 'Media Assets', icon: Database },
   ];
   if(userProfile?.role === 'Admin') navItems.push({ id: 'admin', title: 'ผู้ดูแลระบบ', subtitle: 'Admin & Logs', icon: Shield });
 
@@ -430,11 +444,11 @@ export default function TeamTaweeApp() {
 
     switch (activeTab) {
       case 'dashboard':
-        const taskStats = { done: 0, pending: 0, total: 0, progress: 0, todo: 0 };
+        const taskStats = { done: 0, doing: 0, waiting: 0, total: 0 };
         tasks.forEach(t => { 
           if(t.status==='Done') taskStats.done++; 
-          else if(t.status==='In Progress' || t.status==='In Review') { taskStats.progress++; taskStats.pending++; } 
-          else if(t.status!=='Canceled') { taskStats.todo++; taskStats.pending++; }
+          else if(t.status==='In Progress' || t.status==='In Review') { taskStats.doing++; } 
+          else if(t.status!=='Canceled') { taskStats.waiting++; }
           if(t.status!=='Canceled') taskStats.total++; 
         });
         return (
@@ -453,8 +467,8 @@ export default function TeamTaweeApp() {
                     <StatusDonutChart stats={taskStats} />
                     <div className="flex justify-center gap-6 mt-6 text-xs font-bold w-full">
                         <div className="text-center"><div className="w-3 h-3 rounded-full bg-emerald-500 mx-auto mb-1"></div> เสร็จ {taskStats.done}</div>
-                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-blue-500 mx-auto mb-1"></div> ทำ {taskStats.progress}</div>
-                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1"></div> รอ {taskStats.todo}</div>
+                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-blue-500 mx-auto mb-1"></div> ทำ {taskStats.doing}</div>
+                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1"></div> รอ {taskStats.waiting}</div>
                     </div>
                 </div>
                 {/* Middle: Strategy Preview (Promoted) */}
@@ -547,7 +561,19 @@ export default function TeamTaweeApp() {
   // --- SUB-RENDERERS ---
   const renderStrategy = () => (
       <div className="h-full flex flex-col">
-        <PageHeader title="กระดานยุทธศาสตร์ 4 แกน" subtitle="Strategy Board & Tasks" action={<div className="flex gap-3"><div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200"><Filter className="w-4 h-4 text-slate-500" /><select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select></div><button onClick={() => setHideDone(!hideDone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button></div>} />
+        <PageHeader title="กระดานยุทธศาสตร์ 4 แกน" subtitle="Strategy Board & Tasks" action={<div className="flex gap-3">
+            {/* Sorting Dropdown */}
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                <ArrowDownWideNarrow className="w-4 h-4 text-slate-500" />
+                <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="newest">ล่าสุด (Newest)</option><option value="oldest">เก่าสุด (Oldest)</option><option value="deadline">ใกล้กำหนดส่ง (Deadline)</option></select>
+            </div>
+            {/* Filter Dropdown */}
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                <Filter className="w-4 h-4 text-slate-500" />
+                <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
+            </div>
+            <button onClick={() => setHideDone(!hideDone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button></div>} 
+        />
         <div className="overflow-x-auto pb-4 flex-1 custom-scrollbar"><div className="flex flex-col md:flex-row gap-4 min-w-full md:min-w-[1200px] h-full">{['solver', 'principles', 'defender', 'expert', 'backoffice'].map((key) => (<div key={key} className={`w-full md:w-1/5 bg-white rounded-2xl p-4 border border-slate-200 flex flex-col shadow-sm`}><div className="mb-3 pb-2 border-b border-slate-100"><h3 className="font-black text-slate-800 text-sm uppercase tracking-wide truncate">{COLUMN_LABELS[key]}</h3><p className="text-[10px] text-slate-500 line-clamp-1">{COL_DESCRIPTIONS[key]}</p></div><div className="space-y-3 overflow-y-auto max-h-[60vh] pr-1 custom-scrollbar flex-1">{groupedTasks[key]?.filter(t => (!hideDone || t.status !== 'Done') && (filterTag === 'All' || t.tag === filterTag)).map(task => (<div key={task.id} onClick={() => setEditingTask(task)} className={`bg-white p-4 rounded-xl shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-400 transition-all cursor-pointer relative`}><div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-bold uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-md`}>{task.tag}</span><StatusBadge status={task.status} /></div><h4 className="text-sm font-bold text-slate-800 mb-2 leading-snug">{task.title}</h4>{task.deadline && <div className="flex items-center gap-1.5 text-[10px] text-red-500 font-bold mt-3"><Clock className="w-3 h-3" /> {task.deadline}</div>}<div className="mt-2 pt-2 border-t border-slate-50 text-[9px] text-slate-400 flex flex-col gap-0.5"><span className="flex items-center gap-1"><User className="w-3 h-3" /> {task.role || task.createdBy}</span>{task.updatedBy && <span className="flex items-center gap-1 text-blue-400"><Edit2 className="w-3 h-3" /> {formatDate(task.updatedAt)}</span>}</div></div>))}<button onClick={() => addNewTask(key)} className="w-full py-3 text-sm text-slate-400 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-bold"><Plus className="w-4 h-4" /> เพิ่มงาน</button></div></div>))}</div></div>
         {editingTask && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1200] p-4 animate-fadeIn"><div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative"><button onClick={() => setEditingTask(null)} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button><h3 className="font-bold text-xl text-slate-800 mb-6">แก้ไขงาน</h3><div className="space-y-4"><input type="text" value={editingTask.title} onChange={e=>setEditingTask({...editingTask, title:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" /><div><input type="text" value={editingTask.tag} onChange={e=>setEditingTask({...editingTask, tag:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="Tag..." /><div className="mt-2 flex flex-wrap gap-2">{PRESET_TAGS.slice(0,5).map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag:t})} className="text-[10px] bg-slate-100 px-2 py-1 rounded border hover:bg-blue-100">{t}</button>)}</div></div><input type="text" value={editingTask.role||""} onChange={e=>setEditingTask({...editingTask, role:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="ผู้รับผิดชอบ" /><div className="grid grid-cols-2 gap-4"><select value={editingTask.status} onChange={e=>setEditingTask({...editingTask, status:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm"><option>To Do</option><option>In Progress</option><option>In Review</option><option>Done</option><option>Idea</option><option>Waiting list</option><option>Canceled</option></select><input type="date" value={editingTask.deadline} onChange={e=>setEditingTask({...editingTask, deadline:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm" /></div><input type="text" value={editingTask.link} onChange={e=>setEditingTask({...editingTask, link:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="Link..." /><div className="flex justify-between pt-4"><button onClick={async()=>{if(confirm("ลบ?")){setIsGlobalLoading(true); await deleteDoc(doc(db,"tasks",editingTask.id)); logActivity("Delete Task", editingTask.title); setIsGlobalLoading(false); setEditingTask(null);}}} className="text-red-500 text-sm font-bold flex items-center gap-1"><Trash2 className="w-4 h-4"/> ลบ</button><button onClick={()=>saveTaskChange(editingTask)} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold shadow hover:bg-blue-700">บันทึก</button></div></div></div></div>}
       </div>
@@ -629,10 +655,10 @@ export default function TeamTaweeApp() {
 
   const renderAssets = () => (
       <div className="space-y-6">
-          <PageHeader title="คลังอาวุธ" subtitle="Media & Channels" />
+          <PageHeader title="คลังข้อมูลสื่อ" subtitle="Media Assets" />
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 rounded-2xl shadow-lg text-white flex justify-between items-center">
               <div><h3 className="text-2xl font-black mb-2">Google Drive</h3><p className="text-blue-100">พื้นที่เก็บไฟล์ต้นฉบับ</p></div>
-              <a href="https://drive.google.com" target="_blank" rel="noreferrer" className="bg-white text-blue-700 px-6 py-3 rounded-xl font-bold shadow-xl flex items-center gap-2"><ExternalLink className="w-5 h-5"/> เปิด Drive</a>
+              <a href="https://drive.google.com/drive/folders/0AHTNNQ96Wgq-Uk9PVA" target="_blank" rel="noreferrer" className="bg-white text-blue-700 px-6 py-3 rounded-xl font-bold shadow-xl flex items-center gap-2"><ExternalLink className="w-5 h-5"/> เปิด Drive</a>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
