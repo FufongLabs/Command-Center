@@ -58,10 +58,7 @@ const COLUMN_LABELS = {
 const formatDate = (isoString) => {
   if (!isoString) return "-";
   try {
-    return new Date(isoString).toLocaleString('th-TH', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
+    return new Date(isoString).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch (e) { return "-"; }
 };
 
@@ -199,11 +196,9 @@ const StatusBadge = ({ status }) => {
   const styles = {
     "To Do": "bg-slate-100 text-slate-600 border-slate-200",
     "In Progress": "bg-blue-50 text-blue-600 border-blue-100", 
-    "In Review": "bg-purple-50 text-purple-600 border-purple-100", 
+    "In Review": "bg-amber-50 text-amber-600 border-amber-100", 
     "Done": "bg-emerald-50 text-emerald-600 border-emerald-100", 
-    "Idea": "bg-yellow-50 text-yellow-600 border-yellow-100",
-    "Waiting list": "bg-orange-50 text-orange-600 border-orange-100",
-    "Canceled": "bg-gray-50 text-gray-400 border-gray-200 line-through"
+    "Urgent": "bg-red-50 text-red-600 border-red-100"
   };
   return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
@@ -211,9 +206,7 @@ const StatusBadge = ({ status }) => {
 const StatusDonutChart = ({ stats }) => {
   const total = stats.total || 1; 
   const donePercent = (stats.done / total) * 100;
-  const doingPercent = (stats.doing / total) * 100;
-  // const waitingPercent = (stats.waiting / total) * 100; // Grey part
-
+  const progressPercent = (stats.progress / total) * 100;
   const circumference = 2 * Math.PI * 40;
 
   return (
@@ -221,10 +214,8 @@ const StatusDonutChart = ({ stats }) => {
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" />
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-300" strokeWidth="12" strokeDasharray={`${circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" 
-          strokeDasharray={`${(donePercent + doingPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" 
-          strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
       <div className="absolute text-center">
         <span className="text-4xl font-black text-slate-800">{stats.total}</span>
@@ -234,7 +225,7 @@ const StatusDonutChart = ({ stats }) => {
   );
 };
 
-// --- LOGIN & PROFILE ---
+// --- LOGIN SCREEN ---
 const LoginScreen = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -364,7 +355,6 @@ export default function TeamTaweeApp() {
     const unsubPlans = onSnapshot(collection(db, "plans"), (s) => setPlans(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubMedia = onSnapshot(collection(db, "media"), (s) => setMedia(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubChannels = onSnapshot(collection(db, "channels"), (s) => setChannels(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    // FIX: Use safe navigation for publishedLinks in case collection doesn't exist yet
     try {
       const unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
       let unsubUsers = () => {}, unsubLogs = () => {};
@@ -479,8 +469,18 @@ export default function TeamTaweeApp() {
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
                     <div className="flex justify-between items-center mb-3"><p className="text-slate-500 text-xs font-bold uppercase">Strategy 4 แกน</p><button onClick={()=>navigateTo('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ไปที่กระดาน →</button></div>
                     <div className="grid grid-cols-2 gap-3 flex-1">
-                        {['solver', 'principles', 'defender', 'expert'].map(k=><div key={k} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center cursor-pointer hover:border-blue-300 transition" onClick={()=>navigateTo('strategy')}><span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full text-center">{COLUMN_LABELS[k].split(' ')[1]}</span><span className="text-2xl font-black text-slate-700">{groupedTasks[k]?.length||0}</span>
-                         <div className="mt-1 w-full px-2"><div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-blue-500" style={{width: `${groupedTasks[k]?.length > 0 ? Math.min(100, groupedTasks[k]?.length * 10) : 0}%`}}></div></div></div>
+                        {['solver', 'principles', 'defender', 'expert'].map(k=><div key={k} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center cursor-pointer hover:border-blue-300 transition h-full" onClick={()=>navigateTo('strategy')}>
+                           <div className="flex justify-between w-full mb-2 pb-1 border-b border-slate-200">
+                               <span className="text-[10px] font-bold uppercase text-slate-400 truncate">{COLUMN_LABELS[k].split(' ')[1]}</span>
+                               <span className="text-[10px] font-black bg-white px-1.5 rounded text-slate-700 shadow-sm">{groupedTasks[k]?.length||0}</span>
+                           </div>
+                           <div className="w-full space-y-1.5">
+                              {(groupedTasks[k]||[]).slice(0,2).map(t=>(
+                                  <div key={t.id} className="flex items-center gap-1.5 w-full"><div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${t.status==='Done'?'bg-emerald-500':'bg-blue-400'}`}></div><p className="text-[10px] text-slate-600 truncate flex-1">{t.title}</p></div>
+                              ))}
+                              {(groupedTasks[k]?.length > 2) && <p className="text-[9px] text-slate-400 pl-3">+ อีก {groupedTasks[k].length - 2} งาน</p>}
+                              {(groupedTasks[k]?.length === 0) && <p className="text-[9px] text-slate-300 text-center py-2">- ว่าง -</p>}
+                           </div>
                         </div>)}
                     </div>
                 </div>
@@ -568,16 +568,8 @@ export default function TeamTaweeApp() {
   const renderStrategy = () => (
       <div className="h-full flex flex-col">
         <PageHeader title="กระดานยุทธศาสตร์ 4 แกน" subtitle="Strategy Board & Tasks" action={<div className="flex gap-3">
-            {/* Sorting Dropdown */}
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                <ArrowDownWideNarrow className="w-4 h-4 text-slate-500" />
-                <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="newest">ล่าสุด (Newest)</option><option value="oldest">เก่าสุด (Oldest)</option><option value="deadline">ใกล้กำหนดส่ง (Deadline)</option></select>
-            </div>
-            {/* Filter Dropdown */}
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                <Filter className="w-4 h-4 text-slate-500" />
-                <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select>
-            </div>
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200"><ArrowDownWideNarrow className="w-4 h-4 text-slate-500" /><select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="newest">ล่าสุด (Newest)</option><option value="oldest">เก่าสุด (Oldest)</option><option value="deadline">ใกล้กำหนดส่ง (Deadline)</option></select></div>
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200"><Filter className="w-4 h-4 text-slate-500" /><select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-sm border-none focus:ring-0 cursor-pointer outline-none"><option value="All">All Tags</option>{allTags.filter(t=>t!=='All').map(tag => <option key={tag} value={tag}>{tag}</option>)}</select></div>
             <button onClick={() => setHideDone(!hideDone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition ${hideDone ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300'}`}>{hideDone ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />} {hideDone ? "Show Done" : "Hide Done"}</button></div>} 
         />
         <div className="overflow-x-auto pb-4 flex-1 custom-scrollbar"><div className="flex flex-col md:flex-row gap-4 min-w-full md:min-w-[1200px] h-full">{['solver', 'principles', 'defender', 'expert', 'backoffice'].map((key) => (<div key={key} className={`w-full md:w-1/5 bg-white rounded-2xl p-4 border border-slate-200 flex flex-col shadow-sm`}><div className="mb-3 pb-2 border-b border-slate-100"><h3 className="font-black text-slate-800 text-sm uppercase tracking-wide truncate">{COLUMN_LABELS[key]}</h3><p className="text-[10px] text-slate-500 line-clamp-1">{COL_DESCRIPTIONS[key]}</p></div><div className="space-y-3 overflow-y-auto max-h-[60vh] pr-1 custom-scrollbar flex-1">{groupedTasks[key]?.filter(t => (!hideDone || t.status !== 'Done') && (filterTag === 'All' || t.tag === filterTag)).map(task => (<div key={task.id} onClick={() => setEditingTask(task)} className={`bg-white p-4 rounded-xl shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-400 transition-all cursor-pointer relative`}><div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-bold uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-md`}>{task.tag}</span><StatusBadge status={task.status} /></div><h4 className="text-sm font-bold text-slate-800 mb-2 leading-snug">{task.title}</h4>{task.deadline && <div className="flex items-center gap-1.5 text-[10px] text-red-500 font-bold mt-3"><Clock className="w-3 h-3" /> {task.deadline}</div>}<div className="mt-2 pt-2 border-t border-slate-50 text-[9px] text-slate-400 flex flex-col gap-0.5"><span className="flex items-center gap-1"><User className="w-3 h-3" /> {task.role || task.createdBy}</span>{task.updatedBy && <span className="flex items-center gap-1 text-blue-400"><Edit2 className="w-3 h-3" /> {formatDate(task.updatedAt)}</span>}</div></div>))}<button onClick={() => addNewTask(key)} className="w-full py-3 text-sm text-slate-400 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-bold"><Plus className="w-4 h-4" /> เพิ่มงาน</button></div></div>))}</div></div>
