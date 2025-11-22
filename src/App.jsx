@@ -199,26 +199,34 @@ const StatusBadge = ({ status }) => {
   const styles = {
     "To Do": "bg-slate-100 text-slate-600 border-slate-200",
     "In Progress": "bg-blue-50 text-blue-600 border-blue-100", 
-    "In Review": "bg-amber-50 text-amber-600 border-amber-100", 
+    "In Review": "bg-purple-50 text-purple-600 border-purple-100", 
     "Done": "bg-emerald-50 text-emerald-600 border-emerald-100", 
-    "Urgent": "bg-red-50 text-red-600 border-red-100"
+    "Idea": "bg-yellow-50 text-yellow-600 border-yellow-100",
+    "Waiting list": "bg-orange-50 text-orange-600 border-orange-100",
+    "Canceled": "bg-gray-50 text-gray-400 border-gray-200 line-through"
   };
   return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
+// --- UPDATED GRAPH LOGIC (FIXED COLORS) ---
 const StatusDonutChart = ({ stats }) => {
   const total = stats.total || 1; 
   const donePercent = (stats.done / total) * 100;
-  const progressPercent = (stats.progress / total) * 100;
+  const doingPercent = (stats.doing / total) * 100;
   const circumference = 2 * Math.PI * 40;
 
   return (
     <div className="relative w-48 h-48 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-300" strokeWidth="12" strokeDasharray={`${circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
+        
+        {/* Doing Layer (Blue) */}
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" 
+          strokeDasharray={`${(donePercent + doingPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
+        
+        {/* Done Layer (Green) */}
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" 
+          strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
       <div className="absolute text-center">
         <span className="text-4xl font-black text-slate-800">{stats.total}</span>
@@ -315,6 +323,7 @@ export default function TeamTaweeApp() {
 
   const [hideDone, setHideDone] = useState(false);
   const [filterTag, setFilterTag] = useState('All');
+  const [sortOrder, setSortOrder] = useState('newest'); 
   const [isGlobalLoading, setIsGlobalLoading] = useState(false); 
   const [isDataLoading, setIsDataLoading] = useState(true); 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -457,9 +466,9 @@ export default function TeamTaweeApp() {
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
                     <div className="flex justify-between items-center mb-3"><p className="text-slate-500 text-xs font-bold uppercase">Strategy 4 แกน</p><button onClick={()=>navigateTo('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ไปที่กระดาน →</button></div>
                     <div className="grid grid-cols-2 gap-3 flex-1">
-                        {['solver', 'principles', 'defender', 'expert'].map(k=><div key={k} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center cursor-pointer hover:border-blue-300 transition" onClick={()=>navigateTo('strategy')}>
+                        {['solver', 'principles', 'defender', 'expert'].map(k=><div key={k} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center cursor-pointer hover:border-blue-300 transition h-full" onClick={()=>navigateTo('strategy')}>
                            <div className="flex justify-between w-full mb-2 pb-1 border-b border-slate-200">
-                               <span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full">{COLUMN_LABELS[k].split(' ')[1]}</span>
+                               <span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full text-center">{COLUMN_LABELS[k].split(' ')[1]}</span>
                                <span className="text-[10px] font-black bg-white px-1.5 rounded text-slate-700 shadow-sm">{groupedTasks[k]?.length||0}</span>
                            </div>
                            <div className="w-full space-y-1.5">
@@ -645,10 +654,10 @@ export default function TeamTaweeApp() {
 
   const renderAssets = () => (
       <div className="space-y-6">
-          <PageHeader title="คลังข้อมูลสื่อ" subtitle="Media & Channels" />
+          <PageHeader title="คลังข้อมูลสื่อ" subtitle="Media Assets" />
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 rounded-2xl shadow-lg text-white flex justify-between items-center">
               <div><h3 className="text-2xl font-black mb-2">Google Drive</h3><p className="text-blue-100">พื้นที่เก็บไฟล์ต้นฉบับ</p></div>
-              <a href="https://drive.google.com" target="_blank" rel="noreferrer" className="bg-white text-blue-700 px-6 py-3 rounded-xl font-bold shadow-xl flex items-center gap-2"><ExternalLink className="w-5 h-5"/> เปิด Drive</a>
+              <a href="https://drive.google.com/drive/folders/0AHTNNQ96Wgq-Uk9PVA" target="_blank" rel="noreferrer" className="bg-white text-blue-700 px-6 py-3 rounded-xl font-bold shadow-xl flex items-center gap-2"><ExternalLink className="w-5 h-5"/> เปิด Drive</a>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
