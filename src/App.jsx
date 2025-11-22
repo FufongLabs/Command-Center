@@ -15,16 +15,12 @@ import {
 } from 'lucide-react';
 
 // --- GLOBAL CONSTANTS ---
-// 1. Updated Tags
 const PRESET_TAGS = [
   "Visual Storytelling", "Viral", "Tradition", "Knowledge", "Urgent", "Report", "System", "Event", "Crisis",
   "Quote", "Infographic", "Single Photo"
 ];
 
-// 2. Asset Types
 const ASSET_TYPES = ["Own media", "Partner", "NEWS Paper", "NEWS Website", "Fan Club (own)"];
-
-// 3. Task Statuses
 const TASK_STATUSES = ["To Do", "In Progress", "In Review", "Done", "Idea", "Waiting list", "Canceled"];
 
 const DEFAULT_SOP = [
@@ -62,7 +58,10 @@ const COLUMN_LABELS = {
 const formatDate = (isoString) => {
   if (!isoString) return "-";
   try {
-    return new Date(isoString).toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(isoString).toLocaleString('th-TH', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
   } catch (e) { return "-"; }
 };
 
@@ -212,7 +211,9 @@ const StatusBadge = ({ status }) => {
 const StatusDonutChart = ({ stats }) => {
   const total = stats.total || 1; 
   const donePercent = (stats.done / total) * 100;
-  const progressPercent = (stats.progress / total) * 100;
+  const doingPercent = (stats.doing / total) * 100;
+  // const waitingPercent = (stats.waiting / total) * 100; // Grey part
+
   const circumference = 2 * Math.PI * 40;
 
   return (
@@ -220,8 +221,10 @@ const StatusDonutChart = ({ stats }) => {
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" />
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-300" strokeWidth="12" strokeDasharray={`${circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" 
+          strokeDasharray={`${(donePercent + doingPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" 
+          strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
       <div className="absolute text-center">
         <span className="text-4xl font-black text-slate-800">{stats.total}</span>
@@ -231,7 +234,7 @@ const StatusDonutChart = ({ stats }) => {
   );
 };
 
-// --- LOGIN SCREEN ---
+// --- LOGIN & PROFILE ---
 const LoginScreen = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -361,6 +364,7 @@ export default function TeamTaweeApp() {
     const unsubPlans = onSnapshot(collection(db, "plans"), (s) => setPlans(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubMedia = onSnapshot(collection(db, "media"), (s) => setMedia(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubChannels = onSnapshot(collection(db, "channels"), (s) => setChannels(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    // FIX: Use safe navigation for publishedLinks in case collection doesn't exist yet
     try {
       const unsubLinks = onSnapshot(query(collection(db, "published_links"), orderBy("createdAt", "desc")), (s) => setPublishedLinks(s.docs.map(d => ({ id: d.id, ...d.data() }))));
       let unsubUsers = () => {}, unsubLogs = () => {};
@@ -475,7 +479,9 @@ export default function TeamTaweeApp() {
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
                     <div className="flex justify-between items-center mb-3"><p className="text-slate-500 text-xs font-bold uppercase">Strategy 4 แกน</p><button onClick={()=>navigateTo('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ไปที่กระดาน →</button></div>
                     <div className="grid grid-cols-2 gap-3 flex-1">
-                        {['solver', 'principles', 'defender', 'expert'].map(k=><div key={k} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center cursor-pointer hover:border-blue-300 transition" onClick={()=>navigateTo('strategy')}><span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full text-center">{COLUMN_LABELS[k].split(' ')[1]}</span><span className="text-2xl font-black text-slate-700">{groupedTasks[k]?.length||0}</span></div>)}
+                        {['solver', 'principles', 'defender', 'expert'].map(k=><div key={k} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center cursor-pointer hover:border-blue-300 transition" onClick={()=>navigateTo('strategy')}><span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full text-center">{COLUMN_LABELS[k].split(' ')[1]}</span><span className="text-2xl font-black text-slate-700">{groupedTasks[k]?.length||0}</span>
+                         <div className="mt-1 w-full px-2"><div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-blue-500" style={{width: `${groupedTasks[k]?.length > 0 ? Math.min(100, groupedTasks[k]?.length * 10) : 0}%`}}></div></div></div>
+                        </div>)}
                     </div>
                 </div>
              </div>
