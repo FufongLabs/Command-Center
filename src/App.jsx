@@ -208,29 +208,40 @@ const StatusBadge = ({ status }) => {
   return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
+// --- FIXED DONUT CHART LOGIC ---
 const StatusDonutChart = ({ stats }) => {
   const total = stats.total || 1; 
+  // Done = Green
   const donePercent = (stats.done / total) * 100;
-  const progressPercent = (stats.progress / total) * 100;
+  // Doing (In Progress + In Review) = Blue
+  const doingPercent = (stats.doing / total) * 100;
+  // Waiting (To Do + Idea + Waiting) = Gray (The rest)
+  
   const circumference = 2 * Math.PI * 40;
 
   return (
     <div className="relative w-48 h-48 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-100" strokeWidth="12" strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-300" strokeWidth="12" strokeDasharray={`${circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent + progressPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
+        {/* Base Circle (Waiting - Gray) */}
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-200" strokeWidth="12" strokeLinecap="round" />
+        
+        {/* Doing Circle (Blue) */}
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" 
+          strokeDasharray={`${(donePercent + doingPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
+        
+        {/* Done Circle (Green) */}
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" 
+          strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
       <div className="absolute text-center">
         <span className="text-4xl font-black text-slate-800">{stats.total}</span>
-        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">TASKS</span>
+        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">ACTIVE TASKS</span>
       </div>
     </div>
   );
 };
 
-// --- LOGIN SCREEN ---
+// ... (LoginScreen, PendingScreen, ProfileModal remain unchanged) ...
 const LoginScreen = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -257,7 +268,7 @@ const LoginScreen = () => {
          <p className="text-slate-500 text-sm mb-8">ศูนย์ปฏิบัติการและบริหารงานยุทธศาสตร์</p>
          {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4 font-medium border border-red-100">{error}</div>}
          <button onClick={handleGoogleLogin} disabled={loading} className="w-full bg-white border-2 border-slate-200 text-slate-700 font-bold py-3.5 rounded-xl hover:bg-slate-50 hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-center gap-3 group">
-            {loading ? <RefreshCw className="w-5 h-5 animate-spin text-blue-600" /> : <svg className="w-5 h-5 transition-transform group-hover:scale-110" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>}
+            {loading ? <RefreshCw className="w-5 h-5 animate-spin text-blue-600" /> : <Mail className="w-5 h-5 text-red-500" />}
             {loading ? 'กำลังเชื่อมต่อ...' : 'เข้าสู่ระบบด้วย Google'}
          </button>
       </div>
@@ -329,7 +340,7 @@ export default function TeamTaweeApp() {
   const [isDistOpen, setIsDistOpen] = useState(false); 
   const [isSopOpen, setIsSopOpen] = useState(false); 
 
-  // BACK BUTTON FIX & HISTORY
+  // BACK BUTTON FIX
   useEffect(() => {
     const handlePopState = (event) => { if (event.state?.tab) setActiveTab(event.state.tab); else setActiveTab('dashboard'); };
     window.addEventListener('popstate', handlePopState);
@@ -406,21 +417,22 @@ export default function TeamTaweeApp() {
 
   const updateUserStatus = (uid, status, role) => { updateDoc(doc(db, "user_profiles", uid), { status, role }); logActivity("Admin Update", `${uid} -> ${status}`); };
 
-  // --- Sorting Logic ---
+  // --- Sorting Logic (Fixed: Deadline ascending, Empty last) ---
   const sortTasks = (taskList) => {
     if(!taskList) return [];
     return [...taskList].sort((a, b) => {
        if(sortOrder === 'newest') return (new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
        if(sortOrder === 'oldest') return (new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
        if(sortOrder === 'deadline') {
-           if(!a.deadline) return 1; if(!b.deadline) return -1;
+           // Fixed Deadline Sort: Soonest first, No deadline last
+           if(!a.deadline) return 1; 
+           if(!b.deadline) return -1;
            return new Date(a.deadline) - new Date(b.deadline);
        }
        return 0;
     });
   };
 
-  // Render Data
   const groupedTasks = { solver: sortTasks(tasks.filter(t => t.columnKey === 'solver')), principles: sortTasks(tasks.filter(t => t.columnKey === 'principles')), defender: sortTasks(tasks.filter(t => t.columnKey === 'defender')), expert: sortTasks(tasks.filter(t => t.columnKey === 'expert')), backoffice: sortTasks(tasks.filter(t => t.columnKey === 'backoffice')) };
   const urgentTasks = tasks.filter(t => t.tag === 'Urgent');
   const allTags = ['All', ...new Set([...PRESET_TAGS, ...tasks.map(t => t.tag)].filter(Boolean))];
@@ -470,11 +482,24 @@ export default function TeamTaweeApp() {
                         <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1"></div> รอ {taskStats.waiting}</div>
                     </div>
                 </div>
-                {/* Middle: Strategy Preview (Promoted) */}
+                {/* Middle: Strategy Preview (With Content) */}
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
                     <div className="flex justify-between items-center mb-3"><p className="text-slate-500 text-xs font-bold uppercase">Strategy 4 แกน</p><button onClick={()=>navigateTo('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ไปที่กระดาน →</button></div>
                     <div className="grid grid-cols-2 gap-3 flex-1">
-                        {['solver', 'principles', 'defender', 'expert'].map(k=><div key={k} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center cursor-pointer hover:border-blue-300 transition" onClick={()=>navigateTo('strategy')}><span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full text-center">{COLUMN_LABELS[k].split(' ')[1]}</span><span className="text-2xl font-black text-slate-700">{groupedTasks[k]?.length||0}</span></div>)}
+                        {['solver', 'principles', 'defender', 'expert'].map(k=><div key={k} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center cursor-pointer hover:border-blue-300 transition h-full" onClick={()=>navigateTo('strategy')}>
+                           <div className="flex justify-between w-full mb-2 pb-1 border-b border-slate-200">
+                               <span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full text-center">{COLUMN_LABELS[k].split(' ')[1]}</span>
+                               <span className="text-[10px] font-black bg-white px-1.5 rounded text-slate-700 shadow-sm">{groupedTasks[k]?.length||0}</span>
+                           </div>
+                           {/* Preview Content List */}
+                           <div className="w-full space-y-1.5">
+                              {(groupedTasks[k]||[]).slice(0,2).map(t=>(
+                                  <div key={t.id} className="flex items-center gap-1.5 w-full"><div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${t.status==='Done'?'bg-emerald-500':'bg-blue-400'}`}></div><p className="text-[10px] text-slate-600 truncate flex-1">{t.title}</p></div>
+                              ))}
+                              {(groupedTasks[k]?.length > 2) && <p className="text-[9px] text-slate-400 pl-3">+ อีก {groupedTasks[k].length - 2} งาน</p>}
+                              {(groupedTasks[k]?.length === 0) && <p className="text-[9px] text-slate-300 text-center py-2">- ว่าง -</p>}
+                           </div>
+                        </div>)}
                     </div>
                 </div>
              </div>
@@ -616,14 +641,6 @@ export default function TeamTaweeApp() {
                             <div className="flex justify-between mb-3"><span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded animate-pulse">URGENT</span><StatusBadge status={task.status} /></div>
                             <h3 className="font-bold text-slate-800 mb-3 text-lg">{task.title}</h3>
                             {task.deadline && <p className="text-xs text-slate-500 mb-4 flex gap-1"><Clock className="w-3.5 h-3.5"/> {task.deadline}</p>}
-                            <div className="pt-3 border-t border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Progress Checklist</p>
-                                <div className="flex gap-1.5 h-2">
-                                    {(task.sop || []).map((s, i) => (
-                                    <div key={i} className={`flex-1 rounded-full transition-all ${s.done ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-slate-100'}`}></div>
-                                    ))}
-                                </div>
-                            </div>
                         </div>
                     ))}
                 </div>
@@ -650,10 +667,10 @@ export default function TeamTaweeApp() {
 
   const renderAssets = () => (
       <div className="space-y-6">
-          <PageHeader title="คลังข้อมูลสื่อ" subtitle="Media Assets" />
+          <PageHeader title="คลังอาวุธ" subtitle="Media & Channels" />
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 rounded-2xl shadow-lg text-white flex justify-between items-center">
               <div><h3 className="text-2xl font-black mb-2">Google Drive</h3><p className="text-blue-100">พื้นที่เก็บไฟล์ต้นฉบับ</p></div>
-              <a href="https://drive.google.com/drive/folders/0AHTNNQ96Wgq-Uk9PVA" target="_blank" rel="noreferrer" className="bg-white text-blue-700 px-6 py-3 rounded-xl font-bold shadow-xl flex items-center gap-2"><ExternalLink className="w-5 h-5"/> เปิด Drive</a>
+              <a href="https://drive.google.com" target="_blank" rel="noreferrer" className="bg-white text-blue-700 px-6 py-3 rounded-xl font-bold shadow-xl flex items-center gap-2"><ExternalLink className="w-5 h-5"/> เปิด Drive</a>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
