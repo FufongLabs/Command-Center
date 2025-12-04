@@ -55,10 +55,14 @@ const COLUMN_LABELS = {
     backoffice: "5. หลังบ้าน (Back Office)"
 };
 
-const formatDate = (isoString) => {
-  if (!isoString) return "-";
+const formatDate = (val) => {
+  if (!val) return "-";
   try {
-    return new Date(isoString).toLocaleString('th-TH', {
+    // 🟢 บรรทัดนี้สำคัญ: มันจะเช็คเองว่าต้องใช้ .toDate() ไหม
+    const d = val.toDate ? val.toDate() : new Date(val);
+    if (isNaN(d.getTime())) return "-";
+    
+    return d.toLocaleString('th-TH', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
@@ -591,7 +595,11 @@ const formatForInput = (timestamp) => {
                 <Activity className="w-5 h-5 text-blue-500"/> ความเคลื่อนไหวล่าสุด
              </h3>
              <div className="space-y-3 overflow-y-auto max-h-[300px] custom-scrollbar pr-2">
-                {tasks.sort((a,b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)).slice(0, 10).map(t => (
+                {tasks.sort((a,b) => {
+    const timeA = a.updatedAt?.seconds || a.createdAt?.seconds || 0;
+    const timeB = b.updatedAt?.seconds || b.createdAt?.seconds || 0;
+    return timeB - timeA;
+}).slice(0, 10).map(t => (
                    <div key={t.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-50 hover:bg-slate-50 transition cursor-pointer" onClick={() => setEditingTask(t)}>
                       <div className="flex items-center gap-3">
                          <div className={`w-2 h-10 rounded-full ${t.status === 'Done' ? 'bg-emerald-500' : t.status === 'In Progress' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
@@ -647,7 +655,7 @@ const formatForInput = (timestamp) => {
                               {getDomain(link.url)}
                           </div>
                           <div className="mt-auto flex items-center gap-1 text-[9px] text-slate-400">
-                             <Clock className="w-3 h-3"/> {link.createdAt ? formatDate(link.createdAt.toDate()).split(' ')[0] : '-'}
+                             <Clock className="w-3 h-3"/> {link.createdAt ? formatDate(link.createdAt).split(' ')[0] : '-'}
                           </div>
                       </div>
                   </a>
@@ -720,7 +728,7 @@ const formatForInput = (timestamp) => {
                      <div className="space-y-2 text-xs font-mono max-h-96 overflow-y-auto custom-scrollbar">
                          {activityLogs.map(log => (
                              <div key={log.id} className="border-b border-slate-800 pb-2 mb-2 last:border-0">
-                                 <span className="text-slate-500">{log.createdAt ? formatDate(log.createdAt.toDate()) : '-'}</span>
+                                 <span className="text-slate-500">{log.createdAt ? formatDate(log.createdAt) : '-'}</span>
                                  <p className="text-white font-bold mt-0.5">[{log.user}] {log.action}</p>
                                  <p className="opacity-70">{log.details}</p>
                              </div>
@@ -859,7 +867,7 @@ const formatForInput = (timestamp) => {
       const end = new Date(newsEndDate).setHours(23,59,59,999);
       filteredLinks = publishedLinks.filter(l => {
         if(!l.createdAt) return false;
-        const d = l.createdAt.toDate().getTime();
+        const d = l.createdAt.getTime();
         return d >= start && d <= end;
       });
     }
@@ -868,7 +876,7 @@ const formatForInput = (timestamp) => {
     const groupedData = {};
     filteredLinks.forEach(link => {
         if (!link.createdAt) return;
-        const dateObj = link.createdAt.toDate();
+        const dateObj = link.createdAt;
         const weekKey = `${getWeekNumber(dateObj)} (${dateObj.getFullYear()})`;
         const dayKey = dateObj.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -958,7 +966,7 @@ const formatForInput = (timestamp) => {
                                                 </div>
 
                                                 <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400">
-                                                    <span>{formatDate(link.createdAt?.toDate())}</span>
+                                                    <span>{formatDate(link.createdAt)}</span>
                                                 </div>
                                             </div>
                                         </div>
