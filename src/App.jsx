@@ -422,23 +422,34 @@ export default function TeamTaweeApp() {
   const editMedia = (c) => openFormModal("แก้ไขสื่อ", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:c.type}, {key:'phone', label:'เบอร์', defaultValue:c.phone}, {key:'line', label:'Line', defaultValue:c.line}], async(d)=>{ await updateDoc(doc(db,"media",c.id), d); logActivity("Edit Media", c.name); });
   
   // --- ADDED: Auto-Fetch Image/Title Logic in addPublishedLink ---
+// ตัวช่วยแปลงวันที่ให้ใส่ในช่องกรอกได้
+const formatForInput = (timestamp) => {
+  if (!timestamp) return '';
+  const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const pad = (n) => n < 10 ? '0' + n : n;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
   const addPublishedLink = () => openFormModal("เพิ่มลิงก์ข่าว", [
     {key:'url', label:'URL ข่าว (วางลิงก์ที่นี่)'},
     {key:'title', label:'หัวข้อข่าว (ว่างไว้เพื่อดึงออโต้)', placeholder: 'ดึงจากลิงก์อัตโนมัติ...'},
     {key:'imageUrl', label:'Link รูปภาพ (ว่างไว้เพื่อดึงออโต้)', placeholder: 'ดึงจากลิงก์อัตโนมัติ...'}, 
+    // 🟢 เพิ่มช่องเลือกวันเวลา (ค่าเริ่มต้นคือตอนนี้)
+    {key:'customDate', label:'วันที่ลงข่าว (ย้อนหลังได้)', type:'datetime-local', defaultValue: formatForInput(new Date())},
     {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: 'Website'}
   ], async(d)=>{ 
     let finalData = { ...d };
 
-    // ถ้า URL มี แต่ Title หรือ Image ว่าง -> ให้ลอง Fetch Metadata
     if (d.url && (!d.title || !d.imageUrl)) {
-        // (Loading overlay จะทำงานอยู่แล้วเพราะ wrap ด้วย setIsGlobalLoading ใน openFormModal)
         const meta = await fetchLinkMetadata(d.url);
         if (meta) {
             if (!finalData.title) finalData.title = meta.title;
             if (!finalData.imageUrl) finalData.imageUrl = meta.image;
         }
     }
+    
+    // ใช้เวลาที่เลือก หรือถ้าไม่ได้เลือกให้ใช้เวลาปัจจุบัน
+    const createdDate = d.customDate ? new Date(d.customDate) : new Date();
 
     await addDoc(collection(db,"published_links"), {
       title: finalData.title || "No Title",
@@ -446,7 +457,7 @@ export default function TeamTaweeApp() {
       imageUrl: finalData.imageUrl || "", 
       platform: finalData.platform || "Website",
       createdBy:currentUser.displayName, 
-      createdAt:serverTimestamp()
+      createdAt: createdDate // บันทึกวันที่ที่เลือก
     }); 
     logActivity("Add Link", finalData.title); 
   });
@@ -456,11 +467,18 @@ export default function TeamTaweeApp() {
     {key:'title', label:'หัวข้อข่าว', defaultValue: link.title},
     {key:'url', label:'URL ข่าว', defaultValue: link.url},
     {key:'imageUrl', label:'Link รูปภาพ', defaultValue: link.imageUrl}, 
+    // 🟢 ช่องนี้จะดึงเวลาเดิมมาแสดงให้แก้ง่ายๆ
+    {key:'customDate', label:'วันที่ลงข่าว', type:'datetime-local', defaultValue: formatForInput(link.createdAt)},
     {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: link.platform}
   ], async(d)=>{ 
+    
+    // แปลงค่าจากช่องกรอกกลับเป็น Date Object
+    const newDate = d.customDate ? new Date(d.customDate) : null;
+
     await updateDoc(doc(db,"published_links",link.id), {
       ...d,
-      updatedAt:serverTimestamp() // อัปเดตเวลาด้วย
+      createdAt: newDate || link.createdAt, // อัปเดตวันที่ใหม่
+      updatedAt:serverTimestamp() 
     }); 
     logActivity("Edit Link", d.title); 
   });
@@ -583,6 +601,52 @@ export default function TeamTaweeApp() {
                 ))}
              </div>
           </div>
+        </div>
+
+        {/* --- ส่วน Newsroom Preview --- */}
+        <div className="pt-6 border-t border-slate-200">
+           <div className="flex justify-between items-center mb-4">
+               <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-indigo-500"/> ข่าวประชาสัมพันธ์ล่าสุด
+               </h3>
+               <button onClick={() => navigateTo('newsroom')} className="text-sm text-indigo-600 font-bold hover:underline">
+                  ดูทั้งหมด &rarr;
+               </button>
+           </div>
+
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {publishedLinks
+                .sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+                .slice(0, 4)
+                .map(link => (
+                  <a key={link.id} href={link.url} target="_blank" rel="noreferrer" className="group bg-white rounded-xl overflow-hidden border border-slate-200 hover:border-indigo-400 hover:shadow-lg transition-all flex flex-col">
+                      <div className="aspect-video bg-slate-100 relative overflow-hidden">
+                          {link.imageUrl ? (
+                             <img src={link.imageUrl} alt={link.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                          ) : (
+                             <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                                <FileText className="w-8 h-8 mb-1"/>
+                                <span className="text-[10px]">No Image</span>
+                             </div>
+                          )}
+                      </div>
+                      <div className="p-3 flex flex-col flex-1">
+                          <span className="text-[9px] font-bold text-indigo-500 uppercase mb-1">{link.platform || 'News'}</span>
+                          <h4 className="font-bold text-slate-800 text-xs line-clamp-2 mb-2 group-hover:text-indigo-600 transition">
+                             {link.title}
+                          </h4>
+                          <div className="mt-auto flex items-center gap-1 text-[9px] text-slate-400">
+                             <Clock className="w-3 h-3"/> {link.createdAt ? formatDate(link.createdAt.toDate()).split(' ')[0] : '-'}
+                          </div>
+                      </div>
+                  </a>
+              ))}
+              {publishedLinks.length === 0 && (
+                  <div className="col-span-4 p-8 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400">
+                      ยังไม่มีข่าวประชาสัมพันธ์
+                  </div>
+              )}
+           </div>
         </div>
 
         {/* 🟢 ส่วนที่เพิ่มเข้ามา: หน้าต่าง Popup แก้ไขงาน */}
