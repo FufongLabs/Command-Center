@@ -867,7 +867,9 @@ const formatForInput = (timestamp) => {
       const end = new Date(newsEndDate).setHours(23,59,59,999);
       filteredLinks = publishedLinks.filter(l => {
         if(!l.createdAt) return false;
-        const d = l.createdAt.getTime();
+        // 🟢 แก้ไข: แปลงเป็น Date ก่อนเรียก .getTime()
+        const dObj = l.createdAt.toDate ? l.createdAt.toDate() : new Date(l.createdAt);
+        const d = dObj.getTime();
         return d >= start && d <= end;
       });
     }
@@ -876,7 +878,13 @@ const formatForInput = (timestamp) => {
     const groupedData = {};
     filteredLinks.forEach(link => {
         if (!link.createdAt) return;
-        const dateObj = link.createdAt;
+        
+        // 🟢 แก้ไข: แปลง Timestamp เป็น Date Object ให้ถูกต้องก่อนนำไปใช้
+        const dateObj = link.createdAt.toDate ? link.createdAt.toDate() : new Date(link.createdAt);
+        
+        // ป้องกันกรณีวันที่ Error (Invalid Date)
+        if (isNaN(dateObj.getTime())) return;
+
         const weekKey = `${getWeekNumber(dateObj)} (${dateObj.getFullYear()})`;
         const dayKey = dateObj.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -943,28 +951,23 @@ const formatForInput = (timestamp) => {
                                             
                                             <div className="p-4 flex flex-col flex-1">
                                                 <div className="flex justify-between items-start mb-2">
-    <span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span>
-    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-        {/* ปุ่มแก้ไข (ใหม่) */}
-        <button onClick={()=>editPublishedLink(link)} className="text-slate-300 hover:text-blue-500" title="แก้ไข">
-            <Edit2 className="w-3.5 h-3.5"/>
-        </button>
-        {/* ปุ่มลบ (เดิม) */}
-        <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500" title="ลบ">
-            <Trash2 className="w-3.5 h-3.5"/>
-        </button>
-    </div>
-</div>
+                                                    <span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span>
+                                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                                        <button onClick={()=>editPublishedLink(link)} className="text-slate-300 hover:text-blue-500" title="แก้ไข">
+                                                            <Edit2 className="w-3.5 h-3.5"/>
+                                                        </button>
+                                                        <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500" title="ลบ">
+                                                            <Trash2 className="w-3.5 h-3.5"/>
+                                                        </button>
+                                                    </div>
+                                                </div>
                                                 <a href={link.url} target="_blank" rel="noreferrer" className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 hover:text-blue-600 transition mb-2">
                                                     {link.title}
                                                 </a>
-
-                                                {/* 🟢 (ส่วนที่เพิ่มใหม่: แสดงชื่อเว็บ) */}
                                                 <div className="text-[10px] text-slate-400 font-medium mb-3 flex items-center gap-1">
                                                     <LinkIcon className="w-3 h-3" />
                                                     {getDomain(link.url)}
                                                 </div>
-
                                                 <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400">
                                                     <span>{formatDate(link.createdAt)}</span>
                                                 </div>
