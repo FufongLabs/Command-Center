@@ -452,83 +452,66 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-  // ฟังก์ชันเพิ่มข่าว (แบบมีระบบเด้งถามถ้าหาเวลาไม่เจอ)
-  const addPublishedLink = (retryData = null) => {
-    // เช็คว่าเป็นข้อมูลที่ส่งกลับมาแก้ไขใหม่ หรือเป็นการกดเพิ่มครั้งแรก
-    const defaults = (retryData && !retryData.nativeEvent) ? retryData : {};
+  // ฟังก์ชันเพิ่มข่าวแบบใหม่ (Fetch -> Review -> Save)
+  // แก้ปัญหา: ดึงวันที่ผิด หรือดึงไม่ได้ ให้ User เห็นก่อนบันทึก
+  const addPublishedLink = (prefillData = null) => {
+    // เช็คว่าเป็นโหมด "ตรวจทาน" (มีข้อมูลส่งกลับมาแล้ว) หรือ "เริ่มใหม่"
+    const isReview = prefillData && prefillData.title;
 
-    openFormModal(defaults.title ? "ตรวจสอบข้อมูล (กรุณาระบุวันที่)" : "เพิ่มลิงก์ข่าว", [
-      {key:'url', label:'URL ข่าว', defaultValue: defaults.url || ''},
-      {key:'title', label:'หัวข้อข่าว', placeholder: 'ดึงออโต้...', defaultValue: defaults.title || ''},
-      {key:'imageUrl', label:'Link รูปภาพ', placeholder: 'ดึงออโต้...', defaultValue: defaults.imageUrl || ''}, 
-      {key:'customDate', label:'วันที่ลงข่าว', type:'datetime-local', defaultValue: defaults.customDate || formatForInput(new Date())},
-      {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: defaults.platform || 'Website'}
+    openFormModal(isReview ? "ตรวจสอบความถูกต้อง" : "เพิ่มลิงก์ข่าว", [
+      {key:'url', label:'URL ข่าว', defaultValue: prefillData?.url || ''},
+      {key:'title', label:'หัวข้อข่าว', placeholder: 'ระบบจะดึงให้อัตโนมัติ...', defaultValue: prefillData?.title || ''},
+      {key:'imageUrl', label:'Link รูปภาพ', placeholder: 'ระบบจะดึงให้อัตโนมัติ...', defaultValue: prefillData?.imageUrl || ''}, 
+      // ช่องวันที่: แสดงค่าที่ดึงมาได้ (หรือค่าปัจจุบัน) ให้ User เห็นและแก้ได้ทันที
+      {key:'customDate', label:'วันที่ลงข่าว (โปรดตรวจสอบ)', type:'datetime-local', defaultValue: prefillData?.customDate || formatForInput(new Date())},
+      {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: prefillData?.platform || 'Website'}
     ], async(d)=>{ 
-      let finalData = { ...d };
-      let fetchedDate = null;
-
-      // 1. ถ้ามี URL แต่ไม่มี Title/Image -> วิ่งไปดึงข้อมูล
-      // (หรือถ้าเป็นการ Retry กลับมา ก็ไม่ต้องดึงซ้ำแล้ว)
-      if (d.url && (!d.title || !d.imageUrl) && !defaults.title) {
-          const meta = await fetchLinkMetadata(d.url);
-          if (meta) {
-              if (!finalData.title) finalData.title = meta.title;
-              if (!finalData.imageUrl) finalData.imageUrl = meta.image;
-              
-              // พยายามแปลงวันที่ที่ดึงมา
-              if (meta.date) {
-                  const parsedDate = new Date(meta.date);
-                  if (!isNaN(parsedDate.getTime())) {
-                      fetchedDate = parsedDate;
+      
+      // --- PHASE 1: ถ้ายังไม่มีชื่อเรื่อง (เพิ่งวางลิงก์มา) ให้วิ่งไปดึงข้อมูลก่อน ---
+      if (d.url && !d.title) {
+          try {
+              const meta = await fetchLinkMetadata(d.url);
+              // ถ้าดึงข้อมูลเจอ...
+              if (meta) {
+                  // แปลงวันที่ที่ดึงมา เตรียมใส่กลับเข้าไปโชว์ในฟอร์ม
+                  let fetchedDateStr = formatForInput(new Date()); // default วันนี้
+                  if (meta.date) {
+                      const parsed = new Date(meta.date);
+                      if (!isNaN(parsed.getTime())) {
+                          fetchedDateStr = formatForInput(parsed);
+                      }
                   }
+
+                  // 🟢 จุดสำคัญ: ยังไม่บันทึก! แต่เปิดฟอร์มซ้ำพร้อมข้อมูลที่ดึงมาให้คุณตรวจ
+                  setTimeout(() => {
+                      addPublishedLink({
+                          url: d.url,
+                          title: meta.title || "No Title",
+                          imageUrl: meta.image || "",
+                          customDate: fetchedDateStr, // ใส่วันที่ที่ดึงมาให้ดู
+                          platform: d.platform
+                      });
+                  }, 100);
+                  return; // *** จบการทำงานรอบแรก (ยังไม่ Save) ***
               }
-          }
-      }
-      
-      // 2. ตรวจสอบเรื่องวันที่ (จุดสำคัญ!)
-      let finalDate;
-      
-      if (fetchedDate) {
-          // A. ถ้าดึงวันที่มาได้ -> ใช้เลย จบ
-          finalDate = fetchedDate;
-      } else {
-          // B. ถ้าดึงไม่ได้... เช็คว่า user เลือกวันที่เองมาไหม?
-          // (เทียบกับเวลาปัจจุบัน ถ้่ามันเท่ากันเป๊ะ แสดงว่า User อาจจะไม่ได้เลือก)
-          const userPickedDate = new Date(d.customDate);
-          const isUserPicked = Math.abs(userPickedDate.getTime() - new Date().getTime()) > 60000; // ต่างกันเกิน 1 นาทีถือว่าเลือกเอง
-
-          if (isUserPicked || defaults.retry) {
-             // ถ้า User เลือกเอง หรือนี่คือรอบ Retry -> ใช้ค่าที่ User เลือก
-             finalDate = userPickedDate;
-          } else {
-             // C. ถ้าไม่เจอวันที่ และ User ไม่ได้เลือก (ยังเป็นเวลาปัจจุบัน) -> เด้งถาม!
-             const useCurrent = confirm(`⚠️ ระบบไม่พบ "วันที่" ในข่าวนื้\n\nกด "OK" เพื่อใช้วันที่ปัจจุบัน\nกด "Cancel" เพื่อกลับไปเลือกวันที่เอง`);
-             
-             if (!useCurrent) {
-                 // ถ้ากด Cancel -> เปิดฟอร์มเดิมกลับมาใหม่ พร้อมข้อมูลที่ดึงมาได้แล้ว
-                 setTimeout(() => {
-                     addPublishedLink({
-                         ...finalData, 
-                         retry: true // แปะป้ายบอกว่ารอบหน้าไม่ต้องถามแล้วนะ
-                     });
-                 }, 200);
-                 return; // *** หยุดการบันทึกไว้ก่อน ***
-             }
-             finalDate = new Date(); // ถ้ากด OK ก็ใช้วันนี้
-          }
+          } catch (e) { console.log(e); }
       }
 
-      // 3. บันทึกข้อมูล
+      // --- PHASE 2: ถ้ามีข้อมูลครบแล้ว (User ตรวจแล้วกดบันทึก) ---
+      
+      // ใช้วันที่ที่อยู่ในฟอร์ม (ซึ่ง User อาจจะแก้ให้ถูกแล้ว)
+      const finalDate = d.customDate ? new Date(d.customDate) : new Date();
+
       await addDoc(collection(db,"published_links"), {
-        title: finalData.title || "No Title",
-        url: finalData.url || "",
-        imageUrl: finalData.imageUrl || "", 
-        platform: finalData.platform || "Website",
+        title: d.title || "No Title",
+        url: d.url || "",
+        imageUrl: d.imageUrl || "", 
+        platform: d.platform || "Website",
         createdBy:currentUser.displayName, 
-        createdAt: finalDate 
+        createdAt: finalDate // บันทึกวันที่ที่ถูกต้อง
       }); 
-      logActivity("Add Link", finalData.title); 
-    });
+      logActivity("Add Link", d.title); 
+    }, isReview ? "ยืนยันและบันทึก" : "ดึงข้อมูล"); // เปลี่ยนชื่อปุ่มให้เข้าใจง่าย
   };
   
   // --- วางต่อจาก addPublishedLink เดิม ---
