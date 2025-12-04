@@ -518,18 +518,27 @@ const formatForInput = (timestamp) => {
 
   const updateUserStatus = (uid, status, role) => { updateDoc(doc(db, "user_profiles", uid), { status, role }); logActivity("Admin Update", `${uid} -> ${status}`); };
 
-  // --- Sorting Logic ---
+// --- Sorting Logic (แก้ไขแล้ว) ---
   const sortTasks = (taskList) => {
     if(!taskList) return [];
     return [...taskList].sort((a, b) => {
-       const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-       const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+       // ฟังก์ชันช่วยดึงค่าเวลา (รองรับทั้ง Timestamp และ Date ปกติ)
+       const getTime = (d) => {
+           if (!d) return 0;
+           if (d.seconds) return d.seconds; // กรณีเป็น Firestore Timestamp
+           return new Date(d).getTime() / 1000; // กรณีเป็น Date String
+       };
 
-       if(sortOrder === 'newest') return dateB - dateA;
-       if(sortOrder === 'oldest') return dateA - dateB;
+       const timeA = getTime(a.createdAt);
+       const timeB = getTime(b.createdAt);
+
+       if(sortOrder === 'newest') return timeB - timeA; // มาก -> น้อย
+       if(sortOrder === 'oldest') return timeA - timeB; // น้อย -> มาก
+       
        if(sortOrder === 'deadline') {
+           // Deadline เป็น Text (YYYY-MM-DD) เปรียบเทียบได้เลย
            if(!a.deadline && !b.deadline) return 0;
-           if(!a.deadline) return 1; 
+           if(!a.deadline) return 1;  // ไม่มีกำหนดส่ง เอาไปไว้ล่างสุด
            if(!b.deadline) return -1;
            return a.deadline.localeCompare(b.deadline); 
        }
