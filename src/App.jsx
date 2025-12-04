@@ -91,65 +91,72 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันดึงข้อมูลแบบ "Proxy + Gemini" (แก้ปัญหา CORS ถาวร)
+// ฟังก์ชันดึงข้อมูลแบบ Hybrid (Native DOM + Gemini)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
 
-  // 1. 🔑 API Key (Gemini 1.5 Flash)
-  const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
-
-  // ใช้ Proxy (AllOrigins) วิ่งไปโหลด HTML แทนเรา (วิธีนี้ไม่ติด CORS 100%)
+  // 1. ลองใช้ Proxy (AllOrigins)
+  let rawHtml = null;
   try {
     const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
     const proxyData = await proxyRes.json();
-    
-    // ถ้าได้เนื้อหามา (HTML)
-    if (proxyData.contents) {
-        // 2. ส่ง HTML ให้ Gemini ช่วยแกะข้อมูล
-        // ตัด HTML ให้สั้นลง (เอาแค่ 30,000 ตัวอักษรแรก) เพื่อความเร็ว
-        const rawHtml = proxyData.contents.substring(0, 30000); 
-
-        const prompt = `Analyze this HTML content and extract metadata. 
-        1. Title: If it's "Facebook" or "Log in", try to find the caption/description instead.
-        2. Image: Find the main image URL (og:image).
-        3. Date: Find publication date (YYYY-MM-DD).
-        
-        Return ONLY a JSON object: { "title": "...", "image": "...", "date": "..." }
-        
-        HTML: ${rawHtml}`;
-        
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
-        });
-
-        const aiRes = await response.json();
-        const textResponse = aiRes.candidates?.[0]?.content?.parts?.[0]?.text;
-        
-        if (textResponse) {
-            // ล้าง Format ที่ AI อาจแถมมา
-            const cleanJson = textResponse.replace(/```json|```/g, '').trim();
-            const aiData = JSON.parse(cleanJson);
-            
-            // ส่งข้อมูลกลับ ถ้าได้ Title มา
-            if (aiData.title) {
-                return {
-                    title: aiData.title,
-                    image: aiData.image,
-                    date: aiData.date
-                };
-            }
-        }
-    }
-  } catch (e) { 
-      console.error("Fetch failed:", e); 
-      // ไม่ต้องทำอะไร ปล่อยให้มัน return null เพื่อให้ระบบเด้ง Alert ให้กรอกมือ
+    if (proxyData.contents) rawHtml = proxyData.contents;
+  } catch (e) {
+    console.error("Proxy 1 failed, trying backup...");
+    // ถ้า Proxy แรกตาย สามารถเพิ่ม Backup ตรงนี้ได้ (ในที่นี้ขอข้ามเพื่อให้โค้ดไม่บวมเกินไป)
   }
 
-  return null; 
+  if (!rawHtml) return null;
+
+  // 2. 🟢 ใช้ Browser แกะเองก่อน (เร็วและแม่นยำกว่า AI สำหรับ Title/Image)
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(rawHtml, "text/html");
+
+  const getMeta = (prop) => doc.querySelector(`meta[property="${prop}"]`)?.content || doc.querySelector(`meta[name="${prop}"]`)?.content;
+  
+  let result = {
+    title: getMeta("og:title") || doc.title || "",
+    image: getMeta("og:image") || "",
+    date: ""
+  };
+
+  // 3. 🤖 ให้ AI (Gemini) ช่วยหา "วันที่" หรือถ้า Title/Image ยังไม่ได้
+  // ส่งเฉพาะส่วนหัวและเนื้อหาต้นๆ ไปให้ AI (ประหยัด Token และเร็วขึ้น)
+  const shortHtml = rawHtml.substring(0, 20000); 
+
+  try {
+    const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
+    const prompt = `Extract metadata from this HTML. 
+    1. Title: "${result.title}" (If empty, find best title).
+    2. Image: "${result.image}" (If empty, find best image URL).
+    3. Date: Find publication date in YYYY-MM-DD format.
+    
+    Return JSON ONLY: {"title":"...","image":"...","date":"..."}
+    HTML Snippet: ${shortHtml}`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+
+    const aiData = await response.json();
+    const textResponse = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (textResponse) {
+      const cleanJson = textResponse.replace(/```json|```/g, '').trim();
+      const aiResult = JSON.parse(cleanJson);
+      
+      // Merge ข้อมูล: อันไหน Browser หาไม่ได้ ให้ใช้ของ AI
+      if (!result.title) result.title = aiResult.title;
+      if (!result.image) result.image = aiResult.image;
+      result.date = aiResult.date; // วันที่ AI มักจะหาเก่งกว่า
+    }
+  } catch (e) {
+    console.warn("AI Help failed, using basic data");
+  }
+
+  return result;
 };
 
 // --- COMPONENTS ---
@@ -491,76 +498,48 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
- // ฟังก์ชันเพิ่มข่าว (Fetch -> Alert -> Manual)
-  const addPublishedLink = (incomingData = null) => {
-    // 1. เคลียร์ข้อมูลขยะ
-    const data = (incomingData && !incomingData.nativeEvent) ? incomingData : {};
+// ฟังก์ชันเพิ่มข่าว (New Flow: Prompt URL -> Fetch -> Open Modal)
+  const addPublishedLink = async () => {
+    // 1. ถาม URL ก่อนเลย
+    const urlInput = prompt("กรุณาวาง Link ข่าวที่ต้องการเพิ่ม:");
+    if (!urlInput) return; // ถ้ากด Cancel ก็จบ
 
-    // 2. เช็คว่าเป็นโหมด Review หรือไม่ (ดูว่ามี URL ส่งกลับมาไหม)
-    const isReviewMode = !!data.url; 
+    // 2. แสดง Loading
+    setIsGlobalLoading(true);
 
-    // 3. กำหนดค่าเริ่มต้น
+    // 3. เริ่มดึงข้อมูล
+    let meta = { title: "", image: "", date: "" };
+    try {
+        meta = await fetchLinkMetadata(urlInput) || meta;
+    } catch (e) {
+        alert("ดึงข้อมูลอัตโนมัติไม่สำเร็จ แต่คุณยังกรอกเองได้ครับ");
+    }
+
+    // 4. หยุด Loading
+    setIsGlobalLoading(false);
+
+    // 5. เปิด Form Modal พร้อมข้อมูลที่ดึงมาได้ (หรือค่าว่างถ้าดึงไม่ได้)
     const defaults = {
-        url: data.url || '',
-        title: data.title || '',
-        imageUrl: data.imageUrl || '',
-        platform: data.platform || 'Website',
-        customDate: data.customDate || formatForInput(new Date())
+        url: urlInput,
+        title: meta.title || "",
+        imageUrl: meta.image || "",
+        platform: 'Website',
+        // พยายามแปลงวันที่จาก AI ให้เป็น format input, ถ้าไม่ได้ใช้วันปัจจุบัน
+        customDate: meta.date ? `${meta.date}T09:00` : formatForInput(new Date()) 
     };
 
-    openFormModal(isReviewMode ? "ตรวจสอบข้อมูล (Review)" : "เพิ่มลิงก์ข่าว", [
+    openFormModal("เพิ่มข่าวประชาสัมพันธ์", [
+        
       {key:'url', label:'URL ข่าว', defaultValue: defaults.url},
-      {key:'title', label:'หัวข้อข่าว', placeholder: 'ระบบจะดึงให้อัตโนมัติ...', defaultValue: defaults.title},
-      {key:'imageUrl', label:'Link รูปภาพ', placeholder: 'ระบบจะดึงให้อัตโนมัติ...', defaultValue: defaults.imageUrl}, 
-      {key:'customDate', label:'วันที่ลงข่าว (โปรดตรวจสอบ)', type:'datetime-local', defaultValue: defaults.customDate},
+      {key:'title', label:'หัวข้อข่าว', defaultValue: defaults.title}, // ใส่ค่าที่ดึงมาให้เลย
+      {key:'imageUrl', label:'Link รูปภาพ', defaultValue: defaults.imageUrl}, 
+      {key:'customDate', label:'วันที่ลงข่าว', type:'datetime-local', defaultValue: defaults.customDate},
       {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: defaults.platform}
     ], async(d)=>{ 
-      
-      // --- PHASE 1: วิ่งไปดึงข้อมูล (ถ้ายูสเซอร์เพิ่งวางลิงก์ และยังไม่มีชื่อเรื่อง) ---
-      if (!isReviewMode && d.url && !d.title) {
-          try {
-              const meta = await fetchLinkMetadata(d.url);
-              
-              // เตรียมข้อมูลที่จะส่งกลับมา
-              let nextData = {
-                  url: d.url,
-                  title: meta?.title || "", 
-                  imageUrl: meta?.image || "",
-                  platform: d.platform,
-                  customDate: formatForInput(new Date()) 
-              };
-
-              // ถ้าดึงวันที่ได้
-              if (meta && meta.date) {
-                  const parsed = new Date(meta.date);
-                  if (!isNaN(parsed.getTime())) nextData.customDate = formatForInput(parsed);
-              }
-
-              // 🟢 เพิ่มการแจ้งเตือน ถ้าหาไม่เจอจริงๆ
-              if (!meta || !meta.title) {
-                  alert("⚠️ ระบบดึงข้อมูลจากลิงก์นี้ไม่ได้\กรุณากรอกหัวข้อและใส่รูปภาพด้วยตัวเองครับ");
-                  // ส่งค่าว่างกลับไปเพื่อให้ user กรอกเอง (และใส่ space เพื่อบอกว่าผ่านการดึงมาแล้ว)
-                  nextData.title = " "; 
-              }
-
-              // ปิดฟอร์มเก่า -> เปิดใหม่
-              setTimeout(() => {
-                  addPublishedLink(nextData);
-              }, 100);
-              return; // *** จบการทำงานรอบแรก ***
-          } catch (e) { 
-              // ถ้า Error
-              alert("⚠️ เกิดข้อผิดพลาดในการดึงข้อมูล กรุณากรอกเองครับ");
-              setTimeout(() => addPublishedLink({ ...d, title: " " }), 100); 
-              return;
-          }
-      }
-
-      // --- PHASE 2: บันทึกจริง ---
+      // Save Logic
       const finalDate = d.customDate ? new Date(d.customDate) : new Date();
-
       await addDoc(collection(db,"published_links"), {
-        title: d.title.trim() || "No Title", // trim เอาช่องว่างออก
+        title: d.title.trim() || "No Title",
         url: d.url || "",
         imageUrl: d.imageUrl || "", 
         platform: d.platform || "Website",
@@ -568,7 +547,7 @@ const formatForInput = (timestamp) => {
         createdAt: finalDate 
       }); 
       logActivity("Add Link", d.title); 
-    }, isReviewMode ? "ยืนยันการบันทึก" : "ดึงข้อมูล"); 
+    }, "บันทึกข้อมูล"); // ปุ่มกดบันทึก
   };
   
   // --- วางต่อจาก addPublishedLink เดิม ---
