@@ -1082,7 +1082,21 @@ const formatForInput = (timestamp) => {
                                         <div key={link.id} className="group bg-white rounded-xl overflow-hidden border border-slate-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
                                             <div className="aspect-video bg-slate-100 relative overflow-hidden">
                                                 {link.imageUrl ? (
-                                                    <img src={link.imageUrl} alt={link.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                                    <img 
+    src={`https://wsrv.nl/?url=${encodeURIComponent(link.imageUrl)}&w=400&q=75`} 
+    alt={link.title} 
+    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+    onError={(e) => { 
+        e.target.onerror = null; // ป้องกัน Loop
+        // ถ้าโหลดผ่าน Proxy ไม่ได้ ให้ลองโหลดจากลิงก์จริง (Fallback)
+        if (e.target.src.includes('wsrv.nl')) {
+             e.target.src = link.imageUrl;
+        } else {
+             // ถ้ายังไม่ได้อีก ให้ใช้รูป Placeholder
+             e.target.src = "https://placehold.co/600x400?text=No+Image";
+        }
+    }}
+/>
                                                 ) : (
                                                     <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
                                                         <FileText className="w-10 h-10 mb-1"/>
