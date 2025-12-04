@@ -82,11 +82,22 @@ const getDomain = (url) => {
   try { return new URL(url).hostname.replace('www.', ''); } catch (e) { return 'External'; }
 };
 
-// ตัวช่วยแปลงวันที่สำหรับใส่ในช่อง Input
-const formatForInput = (timestamp) => {
-  if (!timestamp) return '';
-  // เช็คว่าเป็น Firestore Timestamp หรือ Date object ปกติ
-  const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+// ตัวช่วยแปลงวันที่สำหรับใส่ในช่อง Input (ฉลาดขึ้น รองรับทั้ง Timestamp, Date, และ String)
+const formatForInput = (val) => {
+  if (!val) return '';
+  
+  // 1. แปลงค่าที่รับมาให้เป็น Date Object ก่อน
+  let d;
+  if (val && typeof val.toDate === 'function') {
+      d = val.toDate(); // กรณีเป็น Firebase Timestamp
+  } else {
+      d = new Date(val); // กรณีเป็น String หรือ Date ปกติ
+  }
+
+  // 2. ถ้าแปลงไม่ได้ ให้ใช้วันปัจจุบัน
+  if (isNaN(d.getTime())) d = new Date();
+
+  // 3. จัด Format เป็น YYYY-MM-DDTHH:mm (ตัดวินาทีและ Timezone ออก เพื่อให้ลง Input ได้)
   const pad = (n) => n < 10 ? '0' + n : n;
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
@@ -532,14 +543,14 @@ const formatForInput = (timestamp) => {
 
 // ฟังก์ชันเพิ่มข่าว (New Flow: Prompt URL -> Fetch -> Open Modal)
   const addPublishedLink = async () => {
-    // 1. ถาม URL ก่อนเลย
+    // 1. ถาม URL
     const urlInput = prompt("กรุณาวาง Link ข่าวที่ต้องการเพิ่ม:");
-    if (!urlInput) return; // ถ้ากด Cancel ก็จบ
+    if (!urlInput) return;
 
-    // 2. แสดง Loading
+    // 2. Loading
     setIsGlobalLoading(true);
 
-    // 3. เริ่มดึงข้อมูล
+    // 3. Fetch Data
     let meta = { title: "", image: "", date: "" };
     try {
         meta = await fetchLinkMetadata(urlInput) || meta;
@@ -547,28 +558,26 @@ const formatForInput = (timestamp) => {
         alert("ดึงข้อมูลอัตโนมัติไม่สำเร็จ แต่คุณยังกรอกเองได้ครับ");
     }
 
-    // 4. หยุด Loading
     setIsGlobalLoading(false);
 
-    // 5. เปิด Form Modal พร้อมข้อมูลที่ดึงมาได้ (หรือค่าว่างถ้าดึงไม่ได้)
+    // 4. เตรียมข้อมูล
     const defaults = {
         url: urlInput,
         title: meta.title || "",
         imageUrl: meta.image || "",
         platform: 'Website',
-        // พยายามแปลงวันที่จาก AI ให้เป็น format input, ถ้าไม่ได้ใช้วันปัจจุบัน
-        customDate: meta.date ? `${meta.date}T09:00` : formatForInput(new Date()) 
+        // 🟢 จุดสำคัญ: ใช้ formatForInput จัดการให้หมด ไม่ต้องต่อ string เองแล้ว
+        customDate: formatForInput(meta.date || new Date())
     };
 
+    // 5. เปิด Modal
     openFormModal("เพิ่มข่าวประชาสัมพันธ์", [
-        
       {key:'url', label:'URL ข่าว', defaultValue: defaults.url},
-      {key:'title', label:'หัวข้อข่าว', defaultValue: defaults.title}, // ใส่ค่าที่ดึงมาให้เลย
+      {key:'title', label:'หัวข้อข่าว', defaultValue: defaults.title},
       {key:'imageUrl', label:'Link รูปภาพ', defaultValue: defaults.imageUrl}, 
       {key:'customDate', label:'วันที่ลงข่าว', type:'datetime-local', defaultValue: defaults.customDate},
       {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: defaults.platform}
     ], async(d)=>{ 
-      // Save Logic
       const finalDate = d.customDate ? new Date(d.customDate) : new Date();
       await addDoc(collection(db,"published_links"), {
         title: d.title.trim() || "No Title",
@@ -579,7 +588,7 @@ const formatForInput = (timestamp) => {
         createdAt: finalDate 
       }); 
       logActivity("Add Link", d.title); 
-    }, "บันทึกข้อมูล"); // ปุ่มกดบันทึก
+    }, "บันทึกข้อมูล");
   };
   
   // --- วางต่อจาก addPublishedLink เดิม ---
