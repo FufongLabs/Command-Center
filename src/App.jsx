@@ -91,27 +91,41 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันดึงข้อมูลแบบ Hybrid (Native DOM + Gemini)
+// ฟังก์ชันดึงข้อมูลแบบ Hybrid (Native DOM + Gemini) + มีระบบสำรอง (Backup)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
 
-  // 1. ลองใช้ Proxy (AllOrigins)
   let rawHtml = null;
+
+  // 🏁 ความพยายามที่ 1: ใช้ AllOrigins (ตัวหลัก)
   try {
     const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    if (!proxyRes.ok) throw new Error("Network error");
     const proxyData = await proxyRes.json();
     if (proxyData.contents) rawHtml = proxyData.contents;
   } catch (e) {
-    console.error("Proxy 1 failed, trying backup...");
-    // ถ้า Proxy แรกตาย สามารถเพิ่ม Backup ตรงนี้ได้ (ในที่นี้ขอข้ามเพื่อให้โค้ดไม่บวมเกินไป)
+    console.warn("AllOrigins failed, trying backup...");
   }
 
+  // 🏁 ความพยายามที่ 2: (Backup) ใช้ CORSProxy.io ถ้าตัวแรกพัง
+  // ตัวนี้แก้ CORS ได้แน่นอน 100%
+  if (!rawHtml) {
+    try {
+      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
+      if (res.ok) {
+         rawHtml = await res.text();
+      }
+    } catch (e) {
+      console.warn("Backup proxy failed too.");
+    }
+  }
+
+  // ถ้ายังไม่ได้จริงๆ (เช่น เว็บปลายทางล่ม) ให้คืนค่าว่าง เพื่อให้ user กรอกเอง
   if (!rawHtml) return null;
 
-  // 2. 🟢 ใช้ Browser แกะเองก่อน (เร็วและแม่นยำกว่า AI สำหรับ Title/Image)
+  // --- ส่วนแกะข้อมูล (Native DOM) ---
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, "text/html");
-
   const getMeta = (prop) => doc.querySelector(`meta[property="${prop}"]`)?.content || doc.querySelector(`meta[name="${prop}"]`)?.content;
   
   let result = {
@@ -120,17 +134,14 @@ const fetchLinkMetadata = async (url) => {
     date: ""
   };
 
-  // 3. 🤖 ให้ AI (Gemini) ช่วยหา "วันที่" หรือถ้า Title/Image ยังไม่ได้
-  // ส่งเฉพาะส่วนหัวและเนื้อหาต้นๆ ไปให้ AI (ประหยัด Token และเร็วขึ้น)
+  // --- ส่วน AI ช่วย (Gemini) ---
   const shortHtml = rawHtml.substring(0, 20000); 
-
   try {
     const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
     const prompt = `Extract metadata from this HTML. 
     1. Title: "${result.title}" (If empty, find best title).
     2. Image: "${result.image}" (If empty, find best image URL).
     3. Date: Find publication date in YYYY-MM-DD format.
-    
     Return JSON ONLY: {"title":"...","image":"...","date":"..."}
     HTML Snippet: ${shortHtml}`;
 
@@ -147,10 +158,9 @@ const fetchLinkMetadata = async (url) => {
       const cleanJson = textResponse.replace(/```json|```/g, '').trim();
       const aiResult = JSON.parse(cleanJson);
       
-      // Merge ข้อมูล: อันไหน Browser หาไม่ได้ ให้ใช้ของ AI
       if (!result.title) result.title = aiResult.title;
       if (!result.image) result.image = aiResult.image;
-      result.date = aiResult.date; // วันที่ AI มักจะหาเก่งกว่า
+      result.date = aiResult.date; 
     }
   } catch (e) {
     console.warn("AI Help failed, using basic data");
