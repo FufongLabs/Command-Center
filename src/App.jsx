@@ -91,20 +91,25 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันดึงข้อมูลอัตโนมัติ (Title + Image + Date)
+// ฟังก์ชันดึงข้อมูลอัตโนมัติ (แก้ไข: รองรับวันที่หลายแบบ)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
   try {
     const response = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
     const data = await response.json();
+    
     if (data.status === 'success') {
+      const meta = data.data;
       return {
-        title: data.data.title,
-        image: data.data.image?.url,
-        date: data.data.date, // ดึงวันที่มาด้วย
+        title: meta.title,
+        image: meta.image?.url,
+        // ลองดึงวันที่จากหลายๆ field ที่ API อาจจะส่งมา
+        date: meta.date || meta.published || meta.updated, 
       };
     }
-  } catch (error) { console.error("Error fetching metadata:", error); }
+  } catch (error) { 
+    console.error("Error fetching metadata:", error); 
+  }
   return null;
 };
 
@@ -447,40 +452,84 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-  const addPublishedLink = () => openFormModal("เพิ่มลิงก์ข่าว", [
-    {key:'url', label:'URL ข่าว (วางลิงก์ที่นี่)'},
-    {key:'title', label:'หัวข้อข่าว (ว่างไว้เพื่อดึงออโต้)', placeholder: 'ดึงจากลิงก์อัตโนมัติ...'},
-    {key:'imageUrl', label:'Link รูปภาพ (ว่างไว้เพื่อดึงออโต้)', placeholder: 'ดึงจากลิงก์อัตโนมัติ...'}, 
-    // เพิ่มช่องวันที่ (ถ้าดึงไม่ได้ จะใช้วันปัจจุบัน)
-    {key:'customDate', label:'วันที่ลงข่าว', type:'datetime-local', defaultValue: formatForInput(new Date())},
-    {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: 'Website'}
-  ], async(d)=>{ 
-    let finalData = { ...d };
-    let fetchedDate = null;
+  // ฟังก์ชันเพิ่มข่าว (แบบมีระบบเด้งถามถ้าหาเวลาไม่เจอ)
+  const addPublishedLink = (retryData = null) => {
+    // เช็คว่าเป็นข้อมูลที่ส่งกลับมาแก้ไขใหม่ หรือเป็นการกดเพิ่มครั้งแรก
+    const defaults = (retryData && !retryData.nativeEvent) ? retryData : {};
 
-    // ถ้ามี URL แต่ไม่มี Title หรือ Image -> ให้วิ่งไปดึงข้อมูล
-    if (d.url && (!d.title || !d.imageUrl)) {
-        const meta = await fetchLinkMetadata(d.url);
-        if (meta) {
-            if (!finalData.title) finalData.title = meta.title;
-            if (!finalData.imageUrl) finalData.imageUrl = meta.image;
-            if (meta.date) fetchedDate = new Date(meta.date); // เก็บวันที่ที่ดึงได้
-        }
-    }
-    
-    // Logic วันที่: 1.ใช้วันที่ที่ดึงมาได้ -> 2.ถ้าไม่มีใช้วันที่เลือกเอง -> 3.ถ้าไม่มีใช้วันปัจจุบัน
-    const createdDate = fetchedDate || (d.customDate ? new Date(d.customDate) : new Date());
+    openFormModal(defaults.title ? "ตรวจสอบข้อมูล (กรุณาระบุวันที่)" : "เพิ่มลิงก์ข่าว", [
+      {key:'url', label:'URL ข่าว', defaultValue: defaults.url || ''},
+      {key:'title', label:'หัวข้อข่าว', placeholder: 'ดึงออโต้...', defaultValue: defaults.title || ''},
+      {key:'imageUrl', label:'Link รูปภาพ', placeholder: 'ดึงออโต้...', defaultValue: defaults.imageUrl || ''}, 
+      {key:'customDate', label:'วันที่ลงข่าว', type:'datetime-local', defaultValue: defaults.customDate || formatForInput(new Date())},
+      {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: defaults.platform || 'Website'}
+    ], async(d)=>{ 
+      let finalData = { ...d };
+      let fetchedDate = null;
 
-    await addDoc(collection(db,"published_links"), {
-      title: finalData.title || "No Title",
-      url: finalData.url || "",
-      imageUrl: finalData.imageUrl || "", 
-      platform: finalData.platform || "Website",
-      createdBy:currentUser.displayName, 
-      createdAt: createdDate // บันทึกวันที่ที่ถูกต้องลงฐานข้อมูล
-    }); 
-    logActivity("Add Link", finalData.title); 
-  });
+      // 1. ถ้ามี URL แต่ไม่มี Title/Image -> วิ่งไปดึงข้อมูล
+      // (หรือถ้าเป็นการ Retry กลับมา ก็ไม่ต้องดึงซ้ำแล้ว)
+      if (d.url && (!d.title || !d.imageUrl) && !defaults.title) {
+          const meta = await fetchLinkMetadata(d.url);
+          if (meta) {
+              if (!finalData.title) finalData.title = meta.title;
+              if (!finalData.imageUrl) finalData.imageUrl = meta.image;
+              
+              // พยายามแปลงวันที่ที่ดึงมา
+              if (meta.date) {
+                  const parsedDate = new Date(meta.date);
+                  if (!isNaN(parsedDate.getTime())) {
+                      fetchedDate = parsedDate;
+                  }
+              }
+          }
+      }
+      
+      // 2. ตรวจสอบเรื่องวันที่ (จุดสำคัญ!)
+      let finalDate;
+      
+      if (fetchedDate) {
+          // A. ถ้าดึงวันที่มาได้ -> ใช้เลย จบ
+          finalDate = fetchedDate;
+      } else {
+          // B. ถ้าดึงไม่ได้... เช็คว่า user เลือกวันที่เองมาไหม?
+          // (เทียบกับเวลาปัจจุบัน ถ้่ามันเท่ากันเป๊ะ แสดงว่า User อาจจะไม่ได้เลือก)
+          const userPickedDate = new Date(d.customDate);
+          const isUserPicked = Math.abs(userPickedDate.getTime() - new Date().getTime()) > 60000; // ต่างกันเกิน 1 นาทีถือว่าเลือกเอง
+
+          if (isUserPicked || defaults.retry) {
+             // ถ้า User เลือกเอง หรือนี่คือรอบ Retry -> ใช้ค่าที่ User เลือก
+             finalDate = userPickedDate;
+          } else {
+             // C. ถ้าไม่เจอวันที่ และ User ไม่ได้เลือก (ยังเป็นเวลาปัจจุบัน) -> เด้งถาม!
+             const useCurrent = confirm(`⚠️ ระบบไม่พบ "วันที่" ในข่าวนื้\n\nกด "OK" เพื่อใช้วันที่ปัจจุบัน\nกด "Cancel" เพื่อกลับไปเลือกวันที่เอง`);
+             
+             if (!useCurrent) {
+                 // ถ้ากด Cancel -> เปิดฟอร์มเดิมกลับมาใหม่ พร้อมข้อมูลที่ดึงมาได้แล้ว
+                 setTimeout(() => {
+                     addPublishedLink({
+                         ...finalData, 
+                         retry: true // แปะป้ายบอกว่ารอบหน้าไม่ต้องถามแล้วนะ
+                     });
+                 }, 200);
+                 return; // *** หยุดการบันทึกไว้ก่อน ***
+             }
+             finalDate = new Date(); // ถ้ากด OK ก็ใช้วันนี้
+          }
+      }
+
+      // 3. บันทึกข้อมูล
+      await addDoc(collection(db,"published_links"), {
+        title: finalData.title || "No Title",
+        url: finalData.url || "",
+        imageUrl: finalData.imageUrl || "", 
+        platform: finalData.platform || "Website",
+        createdBy:currentUser.displayName, 
+        createdAt: finalDate 
+      }); 
+      logActivity("Add Link", finalData.title); 
+    });
+  };
   
   // --- วางต่อจาก addPublishedLink เดิม ---
   const editPublishedLink = (link) => openFormModal("แก้ไขข่าว", [
@@ -518,25 +567,36 @@ const formatForInput = (timestamp) => {
 
   const updateUserStatus = (uid, status, role) => { updateDoc(doc(db, "user_profiles", uid), { status, role }); logActivity("Admin Update", `${uid} -> ${status}`); };
 
-// --- Sorting Logic (แก้ไขแล้ว) ---
+// --- Sorting Logic (แก้ไข: ยึดตาม Deadline ที่กรอกเป็นหลัก) ---
   const sortTasks = (taskList) => {
     if(!taskList) return [];
     return [...taskList].sort((a, b) => {
-       // ฟังก์ชันช่วยดึงค่าเวลา (รองรับทั้ง Timestamp และ Date ปกติ)
-       const getTime = (d) => {
-           if (!d) return 0;
-           if (d.seconds) return d.seconds; // กรณีเป็น Firestore Timestamp
-           return new Date(d).getTime() / 1000; // กรณีเป็น Date String
+       
+       // ฟังก์ชันช่วยดึงค่าวันที่ (ให้ความสำคัญกับ Deadline ก่อน)
+       const getDateValue = (item) => {
+           // 1. ถ้ามี "กำหนดส่ง" (Deadline) ที่เรากรอก ให้ใช้ตัวนี้ก่อนเลย
+           if (item.deadline) {
+               return new Date(item.deadline).getTime();
+           }
+           // 2. ถ้าไม่มี Deadline ให้ถอยไปใช้ "วันที่สร้าง" (createdAt) แทน
+           if (item.createdAt) {
+               // เช็คว่าเป็น Timestamp หรือ Date ปกติ
+               return item.createdAt.seconds ? item.createdAt.seconds * 1000 : new Date(item.createdAt).getTime();
+           }
+           return 0;
        };
 
-       const timeA = getTime(a.createdAt);
-       const timeB = getTime(b.createdAt);
+       const timeA = getDateValue(a);
+       const timeB = getDateValue(b);
 
-       if(sortOrder === 'newest') return timeB - timeA; // มาก -> น้อย
-       if(sortOrder === 'oldest') return timeA - timeB; // น้อย -> มาก
+       // Newest = วันที่ล่าสุด (อนาคต) ขึ้นก่อน
+       if(sortOrder === 'newest') return timeB - timeA; 
        
+       // Oldest = วันที่เก่าสุด (อดีต) ขึ้นก่อน
+       if(sortOrder === 'oldest') return timeA - timeB; 
+       
+       // Deadline Mode (ใกล้กำหนดส่ง)
        if(sortOrder === 'deadline') {
-           // Deadline เป็น Text (YYYY-MM-DD) เปรียบเทียบได้เลย
            if(!a.deadline && !b.deadline) return 0;
            if(!a.deadline) return 1;  // ไม่มีกำหนดส่ง เอาไปไว้ล่างสุด
            if(!b.deadline) return -1;
