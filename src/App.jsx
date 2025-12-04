@@ -64,6 +64,15 @@ const formatDate = (isoString) => {
     });
   } catch (e) { return "-"; }
 };
+// ฟังก์ชันดึงชื่อโดเมนจาก URL (เช่น https://www.google.com -> google.com)
+const getDomain = (url) => {
+  try {
+    const domain = new URL(url).hostname;
+    return domain.replace('www.', '');
+  } catch (e) {
+    return 'External Link';
+  }
+};
 const getWeekNumber = (d) => {
   d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
@@ -635,6 +644,10 @@ const formatForInput = (timestamp) => {
                           <h4 className="font-bold text-slate-800 text-xs line-clamp-2 mb-2 group-hover:text-indigo-600 transition">
                              {link.title}
                           </h4>
+                          <div className="text-[9px] text-slate-400 font-medium mb-2 flex items-center gap-1">
+                              <LinkIcon className="w-2.5 h-2.5" />
+                              {getDomain(link.url)}
+                          </div>
                           <div className="mt-auto flex items-center gap-1 text-[9px] text-slate-400">
                              <Clock className="w-3 h-3"/> {link.createdAt ? formatDate(link.createdAt.toDate()).split(' ')[0] : '-'}
                           </div>
@@ -939,6 +952,13 @@ const formatForInput = (timestamp) => {
                                                 <a href={link.url} target="_blank" rel="noreferrer" className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 hover:text-blue-600 transition mb-2">
                                                     {link.title}
                                                 </a>
+
+                                                {/* 🟢 (ส่วนที่เพิ่มใหม่: แสดงชื่อเว็บ) */}
+                                                <div className="text-[10px] text-slate-400 font-medium mb-3 flex items-center gap-1">
+                                                    <LinkIcon className="w-3 h-3" />
+                                                    {getDomain(link.url)}
+                                                </div>
+
                                                 <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400">
                                                     <span>{formatDate(link.createdAt?.toDate())}</span>
                                                 </div>
