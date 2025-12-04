@@ -934,7 +934,7 @@ const formatForInput = (timestamp) => {
       const end = new Date(newsEndDate).setHours(23,59,59,999);
       filteredLinks = publishedLinks.filter(l => {
         if(!l.createdAt) return false;
-        // 🟢 แก้ไข: แปลงให้เป็น Date ก่อนเสมอ (กันพัง)
+        // แปลงเป็น Date ก่อนเทียบเสมอ
         const dObj = l.createdAt.toDate ? l.createdAt.toDate() : new Date(l.createdAt);
         const d = dObj.getTime();
         return d >= start && d <= end;
@@ -946,10 +946,8 @@ const formatForInput = (timestamp) => {
     filteredLinks.forEach(link => {
         if (!link.createdAt) return;
         
-        // 🟢 แก้ไข: แปลงให้เป็น Date ก่อนเสมอ (กันพัง)
+        // แปลงเป็น Date ก่อนใช้งาน
         const dateObj = link.createdAt.toDate ? link.createdAt.toDate() : new Date(link.createdAt);
-        
-        // กันเหนียว: ถ้าวันทียัง Error อีก ให้ข้ามไปเลย
         if (isNaN(dateObj.getTime())) return;
 
         const weekKey = `${getWeekNumber(dateObj)} (${dateObj.getFullYear()})`;
@@ -975,7 +973,7 @@ const formatForInput = (timestamp) => {
                 </div>
                 <button onClick={() => {setNewsStartDate(''); setNewsEndDate('');}} className="p-2 text-slate-400 hover:text-red-500" title="ล้างค่า"><RefreshCw className="w-4 h-4"/></button>
                 <div className="w-px h-8 bg-slate-200 mx-1"></div>
-                <button onClick={addPublishedLink} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md flex items-center gap-2 h-fit mb-0.5"><Plus className="w-4 h-4" /> เพิ่มข่าว</button>
+                <button onClick={() => addPublishedLink()} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md flex items-center gap-2 h-fit mb-0.5"><Plus className="w-4 h-4" /> เพิ่มข่าว</button>
             </div>
           } 
         />
@@ -984,9 +982,10 @@ const formatForInput = (timestamp) => {
             <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-400">
                 <Globe className="w-12 h-12 mb-3 opacity-20"/>
                 <p>ไม่พบข้อมูลข่าวในช่วงเวลาที่เลือก</p>
-                <button onClick={addPublishedLink} className="mt-4 text-blue-600 font-bold hover:underline text-sm">+ เพิ่มข่าวแรกของคุณ</button>
+                <button onClick={() => addPublishedLink()} className="mt-4 text-blue-600 font-bold hover:underline text-sm">+ เพิ่มข่าวแรกของคุณ</button>
             </div>
         ) : (
+            // เรียงลำดับสัปดาห์ (Week) จากใหม่ไปเก่า
             Object.keys(groupedData).sort((a,b) => b.localeCompare(a)).map(week => ( 
                 <div key={week} className="bg-white/50 rounded-3xl p-6 border border-slate-200/60 shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 left-0 bg-blue-600 text-white text-xs font-black px-4 py-1.5 rounded-br-2xl shadow-sm z-10">
@@ -994,12 +993,20 @@ const formatForInput = (timestamp) => {
                     </div>
                     
                     <div className="space-y-8 mt-4">
-                        {Object.keys(groupedData[week]).sort((a,b) => b.localeCompare(a)).map(day => (
+                        {/* 🟢 ส่วนสำคัญ: เรียงลำดับวัน (Day) ตามเวลาจริง (Timestamp) */}
+                        {Object.keys(groupedData[week]).sort((a,b) => {
+                            const getLinkDate = (dayKey) => {
+                                const link = groupedData[week][dayKey][0];
+                                return link.createdAt.toDate ? link.createdAt.toDate().getTime() : new Date(link.createdAt).getTime();
+                            };
+                            return getLinkDate(b) - getLinkDate(a); // มากไปน้อย (ล่าสุดขึ้นก่อน)
+                        }).map(day => (
                             <div key={day}>
                                 <h3 className="flex items-center gap-2 text-slate-700 font-bold mb-4 pb-2 border-b border-slate-200">
                                     <Calendar className="w-4 h-4 text-blue-500"/> {day}
                                 </h3>
-                               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                                {/* Grid Layout แบบใหม่: แสดงสูงสุด 6 ช่อง (ตามที่ขอ) */}
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                                     {groupedData[week][day].map(link => (
                                         <div key={link.id} className="group bg-white rounded-xl overflow-hidden border border-slate-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
                                             <div className="aspect-video bg-slate-100 relative overflow-hidden">
