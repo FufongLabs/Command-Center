@@ -91,88 +91,82 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันดึงข้อมูลอัตโนมัติ (ฉบับไม้ตาย: DOMParser)
+// ฟังก์ชันดึงข้อมูลแบบ "Hybrid + Gemini Parser" (พร้อม API Key)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
 
-  // ฟังก์ชันย่อย: แปลง HTML ดิบ เป็นข้อมูล (ใช้ DOMParser แม่นยำกว่า Regex)
-  const parseFromHTML = (html) => {
-      try {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, "text/html");
-          
-          // ตัวช่วยดึงค่าจาก Meta Tag
-          const getMeta = (selectors) => {
-              for (let sel of selectors) {
-                  const el = doc.querySelector(sel);
-                  if (el) return el.getAttribute('content') || el.getAttribute('value');
-              }
-              return null;
-          };
+  // 1. 🔑 API Key ของคุณ (Gemini 1.5 Flash)
+  const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
 
-          // ไล่หา Title จากหลายๆ ที่ที่เป็นไปได้
-          const title = getMeta([
-              'meta[property="og:title"]', 
-              'meta[name="twitter:title"]', 
-              'meta[name="title"]'
-          ]) || doc.querySelector('title')?.innerText;
-
-          // ไล่หา Image
-          const image = getMeta([
-              'meta[property="og:image"]', 
-              'meta[name="twitter:image"]',
-              'meta[itemprop="image"]'
-          ]);
-
-          // ไล่หา Date
-          const date = getMeta([
-              'meta[property="article:published_time"]',
-              'meta[name="pubdate"]',
-              'meta[name="date"]',
-              'meta[name="publish_date"]'
-          ]);
-
-          // --- Logic พิเศษสำหรับ Facebook/Instagram ---
-          // ถ้า Title เป็นแค่ "Facebook" ให้ลองไปขุดเอา Description มาแทน
-          let finalTitle = title;
-          const isSocial = url.includes('facebook.com') || url.includes('instagram.com') || url.includes('x.com');
-          if (isSocial && (!title || title === 'Facebook' || title === 'Instagram' || title.includes('Log into'))) {
-              const desc = getMeta(['meta[name="description"]', 'meta[property="og:description"]']);
-              if (desc) finalTitle = desc.substring(0, 100) + "...";
-          }
-
-          if (finalTitle) {
-              return { title: finalTitle, image: image, date: date };
-          }
-      } catch (e) { console.error("Parse error:", e); }
-      return null;
+  // Helper: แต่งข้อมูล
+  const refineData = (data) => {
+      let { title, image, date, description } = data;
+      const isSocial = url.includes('facebook.com') || url.includes('instagram.com') || url.includes('twitter.com') || url.includes('x.com');
+      if (isSocial && description && (!title || title === 'Facebook' || title === 'Instagram' || title.includes('Log into'))) {
+          title = description.substring(0, 100) + "...";
+      }
+      return { title, image, date };
   };
 
-  // --- STEP 1: ลองใช้ Microlink ก่อน (เพราะง่ายและเร็วกว่า) ---
+  // --- 🚀 ก๊อก 1: JsonLink (ของฟรี เร็วสุด) ---
   try {
-    const response = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
-    const data = await response.json();
-    if (data.status === 'success' && data.data.title && data.data.title !== 'Facebook') {
-      return {
-        title: data.data.title,
-        image: data.data.image?.url,
-        date: data.data.date,
-      };
+    const res = await fetch(`https://jsonlink.io/api/extract?url=${encodeURIComponent(url)}`);
+    const data = await res.json();
+    if (data.title) {
+        return refineData({
+            title: data.title,
+            image: data.images?.[0] || data.image,
+            description: data.description,
+            date: data.date 
+        });
     }
-  } catch (error) { /* ข้ามไป Step 2 */ }
+  } catch (e) { console.log("JsonLink failed..."); }
 
-  // --- STEP 2: ถ้า Step 1 พัง ให้ใช้ AllOrigins + DOMParser (เจาะเกราะ) ---
-  try {
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-      const response = await fetch(proxyUrl);
-      const data = await response.json();
-      
-      if (data.contents) {
-          return parseFromHTML(data.contents);
-      }
-  } catch (e) { console.error("Backup fetch failed:", e); }
+  // --- 🤖 ก๊อก 2: Gemini AI (ฉบับ Parser - ไม่ต้องเปิด Google Search) ---
+  if (GEMINI_API_KEY) {
+      try {
+        // 1. ใช้ Proxy ไปดูด HTML ดิบๆ มาก่อน (เร็วและไม่ค่อยโดนบล็อก)
+        const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+        const proxyData = await proxyRes.json();
+        
+        if (proxyData.contents) {
+            // 2. ส่ง HTML ดิบๆ ให้ Gemini ช่วยแกะ
+            // ตัด HTML ให้สั้นลงหน่อย (เอาแค่ 30,000 ตัวอักษรแรก) เพื่อประหยัด Token และเร็วขึ้น
+            const rawHtml = proxyData.contents.substring(0, 30000); 
 
-  return null; // ถ้าไม่เจอจริงๆ ก็ยอมแพ้ (แล้วให้ระบบ Alert ทำงาน)
+            const prompt = `Analyze this HTML content and extract metadata. 
+            Return ONLY a JSON object with keys: "title", "image" (URL), "date" (YYYY-MM-DD or null).
+            For 'date', try to find publication date in meta tags or content.
+            HTML: ${rawHtml}`;
+            
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            const aiRes = await response.json();
+            const textResponse = aiRes.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (textResponse) {
+                const cleanJson = textResponse.replace(/```json|```/g, '').trim();
+                const aiData = JSON.parse(cleanJson);
+                
+                if (aiData.title) {
+                    return {
+                        title: aiData.title,
+                        image: aiData.image,
+                        date: aiData.date // Gemini จะพยายามหา Date มาให้
+                    };
+                }
+            }
+        }
+      } catch (e) { console.error("Gemini Parser failed:", e); }
+  }
+
+  return null; // ยอมแพ้ (เด้งไปกรอกมือ)
 };
 
 // --- COMPONENTS ---
