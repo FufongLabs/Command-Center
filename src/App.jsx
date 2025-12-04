@@ -91,22 +91,37 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันดึงข้อมูลอัตโนมัติ (ฉบับอัปเกรด: แก้ปัญหา Title Facebook/Instagram)
+// ฟังก์ชันดึงข้อมูลอัตโนมัติ (ฉบับ Super Fetch: มีระบบสำรอง)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
+
+  // ฟังก์ชันย่อยสำหรับแกะ HTML (Backup Plan)
+  const parseHtml = (html) => {
+      const getMeta = (prop) => {
+          const match = html.match(new RegExp(`<meta property="${prop}" content="([^"]*)"`, 'i')) || 
+                        html.match(new RegExp(`<meta name="${prop}" content="([^"]*)"`, 'i'));
+          return match ? match[1] : null;
+      };
+      return {
+          title: getMeta('og:title') || getMeta('twitter:title') || html.match(/<title>(.*?)<\/title>/i)?.[1],
+          image: getMeta('og:image') || getMeta('twitter:image'),
+          date: getMeta('article:published_time') || getMeta('date'),
+      };
+  };
+
   try {
+    // --- ก๊อก 1: ลองใช้ Microlink (ตัวเดิม) ก่อน ---
     const response = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
     const data = await response.json();
+    
     if (data.status === 'success') {
       const meta = data.data;
       
-      // --- จุดที่เพิ่ม: Logic พิเศษสำหรับ Facebook/Instagram ---
+      // ถ้าเป็น Facebook/Social ให้ใช้ Logic เดิม (เอา Caption มาโชว์)
       let finalTitle = meta.title;
       const isSocial = url.includes('facebook.com') || url.includes('instagram.com') || url.includes('twitter.com') || url.includes('x.com');
-      
-      // ถ้าเป็น Social Media และ Title ดูไม่สื่อความหมาย -> ให้ใช้ Description (Caption) แทน
-      if (isSocial && meta.description && (!meta.title || meta.title === 'Facebook' || meta.title === 'Instagram' || meta.title.includes('Log into'))) {
-          finalTitle = meta.description.substring(0, 100) + "..."; // ตัดให้สั้นหน่อยจะได้ไม่ยาวเกิน
+      if (isSocial && meta.description && (!meta.title || meta.title === 'Facebook' || meta.title.includes('Log into'))) {
+          finalTitle = meta.description.substring(0, 100) + "..."; 
       }
 
       return {
@@ -115,8 +130,27 @@ const fetchLinkMetadata = async (url) => {
         date: meta.date || meta.published || meta.updated,
       };
     }
-  } catch (error) { console.error("Error fetching metadata:", error); }
-  return null;
+  } catch (error) { console.log("Microlink failed, trying backup..."); }
+
+  // --- ก๊อก 2: ถ้า Microlink พัง/ไม่เจอ ให้ใช้ AllOrigins (Proxy) ไปแงะ HTML เอง ---
+  try {
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const response = await fetch(proxyUrl);
+      const data = await response.json();
+      
+      if (data.contents) {
+          const meta = parseHtml(data.contents);
+          if (meta.title) { // ถ้าแงะเจอ Title ค่อยส่งกลับ
+              return {
+                  title: meta.title,
+                  image: meta.image,
+                  date: meta.date
+              };
+          }
+      }
+  } catch (e) { console.error("Backup fetch failed:", e); }
+
+  return null; // ยอมแพ้
 };
 
 // --- COMPONENTS ---
@@ -458,25 +492,24 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
- // ฟังก์ชันเพิ่มข่าว (Final Fix: แก้ปัญหาข้อมูลไม่ขึ้น + ดึงวันที่)
+ // ฟังก์ชันเพิ่มข่าว (Fetch -> Alert -> Manual)
   const addPublishedLink = (incomingData = null) => {
-    // 1. เคลียร์ข้อมูลขยะ (ถ้ากดปุ่มมา มันจะเป็น Event object เราต้องทิ้งไป)
+    // 1. เคลียร์ข้อมูลขยะ
     const data = (incomingData && !incomingData.nativeEvent) ? incomingData : {};
 
-    // 2. เช็คว่าเป็นโหมด Review หรือไม่ (ดูว่ามีข้อมูล URL ส่งมาใน data ไหม)
+    // 2. เช็คว่าเป็นโหมด Review หรือไม่ (ดูว่ามี URL ส่งกลับมาไหม)
     const isReviewMode = !!data.url; 
 
-    // 3. กำหนดค่าเริ่มต้น (บังคับใส่ค่าว่าง ถ้าไม่มีข้อมูล)
+    // 3. กำหนดค่าเริ่มต้น
     const defaults = {
         url: data.url || '',
         title: data.title || '',
         imageUrl: data.imageUrl || '',
         platform: data.platform || 'Website',
-        // วันที่: ถ้ามีส่งมาให้ใช้ตัวนั้น ถ้าไม่มีให้ใช้วันปัจจุบัน
         customDate: data.customDate || formatForInput(new Date())
     };
 
-    openFormModal(isReviewMode ? "ตรวจสอบความถูกต้อง (Review)" : "เพิ่มลิงก์ข่าว", [
+    openFormModal(isReviewMode ? "ตรวจสอบข้อมูล (Review)" : "เพิ่มลิงก์ข่าว", [
       {key:'url', label:'URL ข่าว', defaultValue: defaults.url},
       {key:'title', label:'หัวข้อข่าว', placeholder: 'ระบบจะดึงให้อัตโนมัติ...', defaultValue: defaults.title},
       {key:'imageUrl', label:'Link รูปภาพ', placeholder: 'ระบบจะดึงให้อัตโนมัติ...', defaultValue: defaults.imageUrl}, 
@@ -484,46 +517,51 @@ const formatForInput = (timestamp) => {
       {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: defaults.platform}
     ], async(d)=>{ 
       
-      // --- PHASE 1: วิ่งไปดึงข้อมูล (ถ้ายูสเซอร์ไม่ได้กรอก Title มาเอง และไม่ใช่รอบ Review) ---
+      // --- PHASE 1: วิ่งไปดึงข้อมูล (ถ้ายูสเซอร์เพิ่งวางลิงก์ และยังไม่มีชื่อเรื่อง) ---
       if (!isReviewMode && d.url && !d.title) {
           try {
               const meta = await fetchLinkMetadata(d.url);
               
-              // เตรียมข้อมูลที่จะส่งกลับมาให้ User ดู
+              // เตรียมข้อมูลที่จะส่งกลับมา
               let nextData = {
                   url: d.url,
                   title: meta?.title || "", 
                   imageUrl: meta?.image || "",
                   platform: d.platform,
-                  customDate: formatForInput(new Date()) // ตั้งต้นเป็นวันนี้ก่อน
+                  customDate: formatForInput(new Date()) 
               };
 
-              // ถ้าดึงวันที่ได้ ให้ใช้ตัวที่ดึงมา
+              // ถ้าดึงวันที่ได้
               if (meta && meta.date) {
                   const parsed = new Date(meta.date);
-                  if (!isNaN(parsed.getTime())) {
-                      nextData.customDate = formatForInput(parsed);
-                  }
+                  if (!isNaN(parsed.getTime())) nextData.customDate = formatForInput(parsed);
               }
 
-              // 🟢 ปิดฟอร์มเก่า -> เปิดใหม่พร้อมข้อมูลที่ดึงมา (Fill แน่นอน)
+              // 🟢 เพิ่มการแจ้งเตือน ถ้าหาไม่เจอจริงๆ
+              if (!meta || !meta.title) {
+                  alert("⚠️ ระบบดึงข้อมูลจากลิงก์นี้ไม่ได้\กรุณากรอกหัวข้อและใส่รูปภาพด้วยตัวเองครับ");
+                  // ส่งค่าว่างกลับไปเพื่อให้ user กรอกเอง (และใส่ space เพื่อบอกว่าผ่านการดึงมาแล้ว)
+                  nextData.title = " "; 
+              }
+
+              // ปิดฟอร์มเก่า -> เปิดใหม่
               setTimeout(() => {
                   addPublishedLink(nextData);
               }, 100);
               return; // *** จบการทำงานรอบแรก ***
           } catch (e) { 
-              console.log(e);
-              // ถ้า Error ก็เปิดกลับมาแบบว่างๆ ให้กรอกมือ
+              // ถ้า Error
+              alert("⚠️ เกิดข้อผิดพลาดในการดึงข้อมูล กรุณากรอกเองครับ");
               setTimeout(() => addPublishedLink({ ...d, title: " " }), 100); 
               return;
           }
       }
 
-      // --- PHASE 2: บันทึกจริง (User กดยืนยัน) ---
+      // --- PHASE 2: บันทึกจริง ---
       const finalDate = d.customDate ? new Date(d.customDate) : new Date();
 
       await addDoc(collection(db,"published_links"), {
-        title: d.title || "No Title",
+        title: d.title.trim() || "No Title", // trim เอาช่องว่างออก
         url: d.url || "",
         imageUrl: d.imageUrl || "", 
         platform: d.platform || "Website",
