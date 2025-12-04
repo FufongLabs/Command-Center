@@ -64,39 +64,34 @@ const formatDate = (isoString) => {
     });
   } catch (e) { return "-"; }
 };
-// ฟังก์ชันดึงชื่อโดเมนจาก URL (เช่น https://www.google.com -> google.com)
+// ฟังก์ชันดึงชื่อเว็บ (Domain)
 const getDomain = (url) => {
-  try {
-    const domain = new URL(url).hostname;
-    return domain.replace('www.', '');
-  } catch (e) {
-    return 'External Link';
-  }
-};
-const getWeekNumber = (d) => {
-  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
-  var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-  var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
-  return `Week ${weekNo}`;
+  try { return new URL(url).hostname.replace('www.', ''); } catch (e) { return 'External'; }
 };
 
-// --- HELPER: Fetch Metadata (Auto Thumbnail) ---
+// ตัวช่วยแปลงวันที่สำหรับใส่ในช่อง Input
+const formatForInput = (timestamp) => {
+  if (!timestamp) return '';
+  // เช็คว่าเป็น Firestore Timestamp หรือ Date object ปกติ
+  const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const pad = (n) => n < 10 ? '0' + n : n;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+// ฟังก์ชันดึงข้อมูลอัตโนมัติ (Title + Image + Date)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
   try {
-    // ใช้ Public API ของ Microlink เพื่อดึงข้อมูล Meta Tags (Title, Image)
     const response = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
     const data = await response.json();
     if (data.status === 'success') {
       return {
         title: data.data.title,
         image: data.data.image?.url,
+        date: data.data.date, // ดึงวันที่มาด้วย
       };
     }
-  } catch (error) {
-    console.error("Error fetching metadata:", error);
-  }
+  } catch (error) { console.error("Error fetching metadata:", error); }
   return null;
 };
 
@@ -443,22 +438,25 @@ const formatForInput = (timestamp) => {
     {key:'url', label:'URL ข่าว (วางลิงก์ที่นี่)'},
     {key:'title', label:'หัวข้อข่าว (ว่างไว้เพื่อดึงออโต้)', placeholder: 'ดึงจากลิงก์อัตโนมัติ...'},
     {key:'imageUrl', label:'Link รูปภาพ (ว่างไว้เพื่อดึงออโต้)', placeholder: 'ดึงจากลิงก์อัตโนมัติ...'}, 
-    // 🟢 เพิ่มช่องเลือกวันเวลา (ค่าเริ่มต้นคือตอนนี้)
-    {key:'customDate', label:'วันที่ลงข่าว (ย้อนหลังได้)', type:'datetime-local', defaultValue: formatForInput(new Date())},
+    // เพิ่มช่องวันที่ (ถ้าดึงไม่ได้ จะใช้วันปัจจุบัน)
+    {key:'customDate', label:'วันที่ลงข่าว', type:'datetime-local', defaultValue: formatForInput(new Date())},
     {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: 'Website'}
   ], async(d)=>{ 
     let finalData = { ...d };
+    let fetchedDate = null;
 
+    // ถ้ามี URL แต่ไม่มี Title หรือ Image -> ให้วิ่งไปดึงข้อมูล
     if (d.url && (!d.title || !d.imageUrl)) {
         const meta = await fetchLinkMetadata(d.url);
         if (meta) {
             if (!finalData.title) finalData.title = meta.title;
             if (!finalData.imageUrl) finalData.imageUrl = meta.image;
+            if (meta.date) fetchedDate = new Date(meta.date); // เก็บวันที่ที่ดึงได้
         }
     }
     
-    // ใช้เวลาที่เลือก หรือถ้าไม่ได้เลือกให้ใช้เวลาปัจจุบัน
-    const createdDate = d.customDate ? new Date(d.customDate) : new Date();
+    // Logic วันที่: 1.ใช้วันที่ที่ดึงมาได้ -> 2.ถ้าไม่มีใช้วันที่เลือกเอง -> 3.ถ้าไม่มีใช้วันปัจจุบัน
+    const createdDate = fetchedDate || (d.customDate ? new Date(d.customDate) : new Date());
 
     await addDoc(collection(db,"published_links"), {
       title: finalData.title || "No Title",
@@ -466,7 +464,7 @@ const formatForInput = (timestamp) => {
       imageUrl: finalData.imageUrl || "", 
       platform: finalData.platform || "Website",
       createdBy:currentUser.displayName, 
-      createdAt: createdDate // บันทึกวันที่ที่เลือก
+      createdAt: createdDate // บันทึกวันที่ที่ถูกต้องลงฐานข้อมูล
     }); 
     logActivity("Add Link", finalData.title); 
   });
