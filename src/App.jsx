@@ -72,6 +72,25 @@ const getWeekNumber = (d) => {
   return `Week ${weekNo}`;
 };
 
+// --- HELPER: Fetch Metadata (Auto Thumbnail) ---
+const fetchLinkMetadata = async (url) => {
+  if (!url) return null;
+  try {
+    // ใช้ Public API ของ Microlink เพื่อดึงข้อมูล Meta Tags (Title, Image)
+    const response = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
+    const data = await response.json();
+    if (data.status === 'success') {
+      return {
+        title: data.data.title,
+        image: data.data.image?.url,
+      };
+    }
+  } catch (error) {
+    console.error("Error fetching metadata:", error);
+  }
+  return null;
+};
+
 // --- COMPONENTS ---
 
 const LoadingOverlay = ({ isOpen, message = "กำลังทำงาน..." }) => {
@@ -215,28 +234,19 @@ const StatusBadge = ({ status }) => {
   return <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide font-bold border ${styles[status] || "bg-gray-100"}`}>{status}</span>;
 };
 
-// --- FIXED: DONUT CHART LOGIC ---
+// --- DONUT CHART LOGIC ---
 const StatusDonutChart = ({ stats }) => {
   const total = stats.total || 1; 
-  // 1. Done (Green) = Done
   const donePercent = (stats.done / total) * 100;
-  // 2. Doing (Blue) = In Progress + In Review
   const doingPercent = (stats.doing / total) * 100;
-  // 3. Waiting (Gray) = To Do + Idea + Waiting list
-  // (Remaining space is gray by default)
-
   const circumference = 2 * Math.PI * 40;
 
   return (
     <div className="relative w-48 h-48 flex items-center justify-center">
       <svg className="transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-200" strokeWidth="12" strokeLinecap="round" /> {/* Base Gray (Waiting) */}
-        
-        {/* Doing Layer (Blue) - starts after Done */}
+        <circle cx="50" cy="50" r="40" fill="none" className="stroke-slate-200" strokeWidth="12" strokeLinecap="round" />
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-blue-500 transition-all duration-1000 ease-out" strokeWidth="12" 
           strokeDasharray={`${(donePercent + doingPercent) / 100 * circumference} ${circumference}`} strokeLinecap="round" />
-        
-        {/* Done Layer (Green) - starts at 0 */}
         <circle cx="50" cy="50" r="40" fill="none" className="stroke-emerald-500 transition-all duration-1000 ease-out" strokeWidth="12" 
           strokeDasharray={`${(donePercent / 100) * circumference} ${circumference}`} strokeLinecap="round" />
       </svg>
@@ -410,19 +420,35 @@ export default function TeamTaweeApp() {
   const updateChannel = (c) => openFormModal("แก้ไขช่องทาง", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:c.type}, {key:'url', label:'URL', defaultValue:c.url}], async(d)=>{ await updateDoc(doc(db,"channels",c.id), d); logActivity("Edit Channel", c.name); });
   const addMedia = () => openFormModal("เพิ่มสื่อ", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:'NEWS Website'}, {key:'phone', label:'เบอร์'}, {key:'line', label:'Line'}], async(d)=>{ await addDoc(collection(db,"media"), {...d, active:true}); logActivity("Add Media", d.name); });
   const editMedia = (c) => openFormModal("แก้ไขสื่อ", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:c.type}, {key:'phone', label:'เบอร์', defaultValue:c.phone}, {key:'line', label:'Line', defaultValue:c.line}], async(d)=>{ await updateDoc(doc(db,"media",c.id), d); logActivity("Edit Media", c.name); });
+  
+  // --- ADDED: Auto-Fetch Image/Title Logic in addPublishedLink ---
   const addPublishedLink = () => openFormModal("เพิ่มลิงก์ข่าว", [
-    {key:'title', label:'หัวข้อข่าว'},
-    {key:'url', label:'URL ข่าว'},
-    {key:'imageUrl', label:'Link รูปภาพ (Thumbnail)', placeholder: 'https://...'}, 
-    {key:'platform', label:'Platform (เช่น Facebook, Website)'}
+    {key:'url', label:'URL ข่าว (วางลิงก์ที่นี่)'},
+    {key:'title', label:'หัวข้อข่าว (ว่างไว้เพื่อดึงออโต้)', placeholder: 'ดึงจากลิงก์อัตโนมัติ...'},
+    {key:'imageUrl', label:'Link รูปภาพ (ว่างไว้เพื่อดึงออโต้)', placeholder: 'ดึงจากลิงก์อัตโนมัติ...'}, 
+    {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: 'Website'}
   ], async(d)=>{ 
+    let finalData = { ...d };
+
+    // ถ้า URL มี แต่ Title หรือ Image ว่าง -> ให้ลอง Fetch Metadata
+    if (d.url && (!d.title || !d.imageUrl)) {
+        // (Loading overlay จะทำงานอยู่แล้วเพราะ wrap ด้วย setIsGlobalLoading ใน openFormModal)
+        const meta = await fetchLinkMetadata(d.url);
+        if (meta) {
+            if (!finalData.title) finalData.title = meta.title;
+            if (!finalData.imageUrl) finalData.imageUrl = meta.image;
+        }
+    }
+
     await addDoc(collection(db,"published_links"), {
-      ...d, 
-      imageUrl: d.imageUrl || "", 
+      title: finalData.title || "No Title",
+      url: finalData.url || "",
+      imageUrl: finalData.imageUrl || "", 
+      platform: finalData.platform || "Website",
       createdBy:currentUser.displayName, 
       createdAt:serverTimestamp()
     }); 
-    logActivity("Add Link", d.title); 
+    logActivity("Add Link", finalData.title); 
   });
   
   const deleteLink = async (id) => { if(confirm("ลบ?")) { await deleteDoc(doc(db,"published_links",id)); logActivity("Delete Link", id); }};
@@ -440,22 +466,19 @@ export default function TeamTaweeApp() {
 
   const updateUserStatus = (uid, status, role) => { updateDoc(doc(db, "user_profiles", uid), { status, role }); logActivity("Admin Update", `${uid} -> ${status}`); };
 
-  // --- FIXED: Sorting Logic (Corrected Date Comparison) ---
+  // --- Sorting Logic ---
   const sortTasks = (taskList) => {
     if(!taskList) return [];
     return [...taskList].sort((a, b) => {
-       // Default to 0 if missing date
        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
 
        if(sortOrder === 'newest') return dateB - dateA;
        if(sortOrder === 'oldest') return dateA - dateB;
        if(sortOrder === 'deadline') {
-           // Tasks with no deadline go last
            if(!a.deadline && !b.deadline) return 0;
            if(!a.deadline) return 1; 
            if(!b.deadline) return -1;
-           // Compare string dates (YYYY-MM-DD) directly
            return a.deadline.localeCompare(b.deadline); 
        }
        return 0;
@@ -469,7 +492,7 @@ export default function TeamTaweeApp() {
 
   const navItems = [
     { id: 'dashboard', title: 'ภาพรวม', subtitle: 'Dashboard', icon: LayoutDashboard },
-    { id: 'newsroom', title: 'ห้องข่าว & สื่อ', subtitle: 'Newsroom', icon: Globe, color: 'text-indigo-500' }, // <--- เพิ่มบรรทัดนี้
+    { id: 'newsroom', title: 'ห้องข่าว & สื่อ', subtitle: 'Newsroom', icon: Globe, color: 'text-indigo-500' }, 
     { id: 'strategy', title: 'กระดาน 4 แกน', subtitle: 'Strategy', icon: Megaphone },
     { id: 'masterplan', title: 'แผนงานหลัก', subtitle: 'Master Plan', icon: Map },
     { id: 'rapidresponse', title: 'ปฏิบัติการด่วน', subtitle: 'Rapid Response', icon: Zap, color: 'text-red-500' },
@@ -481,9 +504,8 @@ export default function TeamTaweeApp() {
   if (!currentUser) return <LoginScreen />;
   if (userProfile?.status === 'Pending') return <PendingScreen onLogout={() => signOut(auth)} />;
 
-// --- เริ่มต้นส่วนที่ต้อง Copy ไปวาง ---
+  // --- DASHBOARD: Classic Style (Donut + 3 Columns) ---
   const renderDashboard = () => {
-    // 1. ส่วนคำนวณ Logic
     const taskStats = { done: 0, doing: 0, waiting: 0, total: 0 };
     tasks.forEach(t => {
       if (t.status !== 'Canceled') {
@@ -494,13 +516,12 @@ export default function TeamTaweeApp() {
       }
     });
 
-    // 2. ส่วนแสดงผล (Return JSX)
     return (
       <div className="space-y-6 animate-fadeIn">
         <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" action={
           <div className="flex gap-2">
             <button onClick={() => setIsSearchOpen(true)} className="p-2 bg-white border rounded-lg text-slate-500 hover:bg-slate-50">
-               🔍 {/* ตรงนี้คือปุ่มค้นหา */}
+               <Search className="w-5 h-5"/>
             </button>
             <button onClick={() => addNewTask('solver')} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-blue-700 transition-colors">
               + งานทั่วไป
@@ -511,68 +532,81 @@ export default function TeamTaweeApp() {
           </div>
         } />
 
-        {/* การ์ดแสดงสถิติ */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="p-6 rounded-2xl bg-slate-100 text-slate-700 flex flex-col items-center justify-center">
-            <span className="text-3xl font-bold">{taskStats.total}</span>
-            <span className="text-sm opacity-80">งานทั้งหมด</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center relative overflow-hidden">
+            <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left">Task Status</p>
+            <StatusDonutChart stats={taskStats} />
+            <div className="flex justify-center gap-4 mt-6 text-[10px] font-bold w-full flex-wrap">
+               <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div>เสร็จ ({taskStats.done})</div>
+               <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div>กำลังทำ ({taskStats.doing})</div>
+               <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-300"></div>รอ ({taskStats.waiting})</div>
+            </div>
           </div>
-          <div className="p-6 rounded-2xl bg-yellow-100 text-yellow-700 flex flex-col items-center justify-center">
-            <span className="text-3xl font-bold">{taskStats.waiting}</span>
-            <span className="text-sm opacity-80">รอรับเรื่อง</span>
-          </div>
-          <div className="p-6 rounded-2xl bg-blue-100 text-blue-700 flex flex-col items-center justify-center">
-            <span className="text-3xl font-bold">{taskStats.doing}</span>
-            <span className="text-sm opacity-80">กำลังดำเนินการ</span>
-          </div>
-          <div className="p-6 rounded-2xl bg-green-100 text-green-700 flex flex-col items-center justify-center">
-            <span className="text-3xl font-bold">{taskStats.done}</span>
-            <span className="text-sm opacity-80">เสร็จสิ้น</span>
+
+          <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
+             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-blue-500"/> ความเคลื่อนไหวล่าสุด
+             </h3>
+             <div className="space-y-3 overflow-y-auto max-h-[300px] custom-scrollbar pr-2">
+                {tasks.sort((a,b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)).slice(0, 10).map(t => (
+                   <div key={t.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-50 hover:bg-slate-50 transition cursor-pointer" onClick={() => setEditingTask(t)}>
+                      <div className="flex items-center gap-3">
+                         <div className={`w-2 h-10 rounded-full ${t.status === 'Done' ? 'bg-emerald-500' : t.status === 'In Progress' ? 'bg-blue-500' : 'bg-slate-300'}`}></div>
+                         <div>
+                            <p className="font-bold text-sm text-slate-700 line-clamp-1">{t.title}</p>
+                            <p className="text-[10px] text-slate-400 flex gap-2">
+                               <span>{t.role || 'ไม่ระบุผู้รับผิดชอบ'}</span>
+                               <span>• {t.updatedAt ? formatDate(t.updatedAt) : 'New'}</span>
+                            </p>
+                         </div>
+                      </div>
+                      <StatusBadge status={t.status} />
+                   </div>
+                ))}
+             </div>
           </div>
         </div>
       </div>
     );
   };
-  // --- จบส่วนที่ต้อง Copy ---
+
   const renderContent = () => {
     if (isDataLoading) return <div className="flex h-64 items-center justify-center text-slate-400"><RefreshCw className="w-6 h-6 animate-spin mr-2"/> Loading Database...</div>;
 
     switch (activeTab) {
-      case 'dashboard':
-      return renderDashboard();
-      
+      case 'dashboard': return renderDashboard();
       case 'admin':
         if(userProfile?.role !== 'Admin') return <div className="p-10 text-center text-red-500">Access Denied</div>;
         return (
           <div className="space-y-6 animate-fadeIn">
-             <PageHeader title="ผู้ดูแลระบบ (Admin)" subtitle="User Management & System Logs" />
-             <div className="flex flex-col lg:flex-row gap-6">
-                <div className="w-full lg:w-1/2 space-y-6">
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Users className="w-5 h-5"/> สมาชิก ({usersList.length})</h3>
-                        <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
-                            {usersList.map(u => (
-                                <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
-                                    <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600">{u.displayName?.[0] || "U"}</div><div><p className="text-sm font-bold">{u.displayName || u.email}</p><p className="text-xs text-slate-500">{u.email} • {u.role}</p></div></div>
-                                    <div className="flex gap-2">{u.status === 'Pending' && <button onClick={()=>updateUserStatus(u.id, 'Active', 'Member')} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded font-bold hover:bg-green-200">อนุมัติ</button>}{u.role !== 'Admin' && <button onClick={()=>updateUserStatus(u.id, 'Active', 'Admin')} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded font-bold hover:bg-blue-200">ตั้งเป็น Admin</button>}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                <div className="w-full lg:w-1/2 bg-slate-900 text-slate-300 p-6 rounded-xl border border-slate-800 shadow-sm h-fit">
-                    <h3 className="font-bold text-white mb-4 flex items-center gap-2"><FileClock className="w-5 h-5"/> Activity Logs</h3>
-                    <div className="space-y-2 text-xs font-mono max-h-96 overflow-y-auto custom-scrollbar">
-                        {activityLogs.map(log => (
-                            <div key={log.id} className="border-b border-slate-800 pb-2 mb-2 last:border-0">
-                                <span className="text-slate-500">{log.createdAt ? formatDate(log.createdAt.toDate()) : '-'}</span>
-                                <p className="text-white font-bold mt-0.5">[{log.user}] {log.action}</p>
-                                <p className="opacity-70">{log.details}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-             </div>
+              <PageHeader title="ผู้ดูแลระบบ (Admin)" subtitle="User Management & System Logs" />
+              <div className="flex flex-col lg:flex-row gap-6">
+                 <div className="w-full lg:w-1/2 space-y-6">
+                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                         <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Users className="w-5 h-5"/> สมาชิก ({usersList.length})</h3>
+                         <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+                             {usersList.map(u => (
+                                 <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
+                                     <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600">{u.displayName?.[0] || "U"}</div><div><p className="text-sm font-bold">{u.displayName || u.email}</p><p className="text-xs text-slate-500">{u.email} • {u.role}</p></div></div>
+                                     <div className="flex gap-2">{u.status === 'Pending' && <button onClick={()=>updateUserStatus(u.id, 'Active', 'Member')} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded font-bold hover:bg-green-200">อนุมัติ</button>}{u.role !== 'Admin' && <button onClick={()=>updateUserStatus(u.id, 'Active', 'Admin')} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded font-bold hover:bg-blue-200">ตั้งเป็น Admin</button>}</div>
+                                 </div>
+                             ))}
+                         </div>
+                     </div>
+                 </div>
+                 <div className="w-full lg:w-1/2 bg-slate-900 text-slate-300 p-6 rounded-xl border border-slate-800 shadow-sm h-fit">
+                     <h3 className="font-bold text-white mb-4 flex items-center gap-2"><FileClock className="w-5 h-5"/> Activity Logs</h3>
+                     <div className="space-y-2 text-xs font-mono max-h-96 overflow-y-auto custom-scrollbar">
+                         {activityLogs.map(log => (
+                             <div key={log.id} className="border-b border-slate-800 pb-2 mb-2 last:border-0">
+                                 <span className="text-slate-500">{log.createdAt ? formatDate(log.createdAt.toDate()) : '-'}</span>
+                                 <p className="text-white font-bold mt-0.5">[{log.user}] {log.action}</p>
+                                 <p className="opacity-70">{log.details}</p>
+                             </div>
+                         ))}
+                     </div>
+                 </div>
+              </div>
           </div>
         );
 
@@ -580,6 +614,7 @@ export default function TeamTaweeApp() {
       case 'masterplan': return renderMasterPlan();
       case 'rapidresponse': return renderRapidResponse();
       case 'assets': return renderAssets();
+      case 'newsroom': return renderNewsroom();
       default: return null;
     }
   };
@@ -643,7 +678,6 @@ export default function TeamTaweeApp() {
                             <div className="flex justify-between mb-3"><span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded animate-pulse">URGENT</span><StatusBadge status={task.status} /></div>
                             <h3 className="font-bold text-slate-800 mb-3 text-lg">{task.title}</h3>
                             {task.deadline && <p className="text-xs text-slate-500 mb-4 flex gap-1"><Clock className="w-3.5 h-3.5"/> {task.deadline}</p>}
-                            {/* FIXED: Render checklist bars even if SOP exists or not, defaulting to 5 gray bars */}
                             <div className="pt-3 border-t border-slate-100">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Progress Checklist</p>
                                 <div className="flex gap-1.5 h-2">
@@ -746,6 +780,7 @@ export default function TeamTaweeApp() {
             <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-400">
                 <Globe className="w-12 h-12 mb-3 opacity-20"/>
                 <p>ไม่พบข้อมูลข่าวในช่วงเวลาที่เลือก</p>
+                <button onClick={addPublishedLink} className="mt-4 text-blue-600 font-bold hover:underline text-sm">+ เพิ่มข่าวแรกของคุณ</button>
             </div>
         ) : (
             Object.keys(groupedData).sort((a,b) => b.localeCompare(a)).map(week => ( 
