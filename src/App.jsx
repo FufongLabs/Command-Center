@@ -91,13 +91,13 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันดึงข้อมูลแบบ Hybrid (Native DOM + Gemini) + มีระบบสำรอง (Backup)
+// ฟังก์ชันดึงข้อมูลแบบ Hybrid (Native DOM + Gemini) + Extra Date Logic
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
 
   let rawHtml = null;
 
-  // 🏁 ความพยายามที่ 1: ใช้ AllOrigins (ตัวหลัก)
+  // 1. ลองใช้ Proxy (AllOrigins)
   try {
     const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
     if (!proxyRes.ok) throw new Error("Network error");
@@ -107,63 +107,85 @@ const fetchLinkMetadata = async (url) => {
     console.warn("AllOrigins failed, trying backup...");
   }
 
-  // 🏁 ความพยายามที่ 2: (Backup) ใช้ CORSProxy.io ถ้าตัวแรกพัง
-  // ตัวนี้แก้ CORS ได้แน่นอน 100%
+  // 2. (Backup) ใช้ CORSProxy.io
   if (!rawHtml) {
     try {
       const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
-      if (res.ok) {
-         rawHtml = await res.text();
-      }
+      if (res.ok) rawHtml = await res.text();
     } catch (e) {
       console.warn("Backup proxy failed too.");
     }
   }
 
-  // ถ้ายังไม่ได้จริงๆ (เช่น เว็บปลายทางล่ม) ให้คืนค่าว่าง เพื่อให้ user กรอกเอง
   if (!rawHtml) return null;
 
   // --- ส่วนแกะข้อมูล (Native DOM) ---
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, "text/html");
   const getMeta = (prop) => doc.querySelector(`meta[property="${prop}"]`)?.content || doc.querySelector(`meta[name="${prop}"]`)?.content;
-  
+
+  // 🟢 เพิ่ม Logic การหาวันที่ให้เก่งขึ้น (โดยไม่ต้องพึ่ง AI)
+  // เว็บข่าว The Standard และส่วนใหญ่ใช้ 'article:published_time'
+  let foundDate = 
+    getMeta("article:published_time") || 
+    getMeta("date") || 
+    getMeta("pubdate") ||
+    doc.querySelector("time")?.getAttribute("datetime") || // หาจาก tag <time>
+    "";
+
+  // ถ้ายังไม่เจอ ลองหาใน JSON-LD (Script ข้อมูลที่มีในเว็บข่าวใหญ่ๆ)
+  if (!foundDate) {
+      try {
+          const jsonLd = doc.querySelector('script[type="application/ld+json"]');
+          if (jsonLd) {
+              const data = JSON.parse(jsonLd.innerText);
+              // อาจจะเป็น Object หรือ Array ก็ได้
+              const target = Array.isArray(data) ? data.find(i => i.datePublished) : data;
+              if (target?.datePublished) foundDate = target.datePublished;
+          }
+      } catch (e) {}
+  }
+
   let result = {
     title: getMeta("og:title") || doc.title || "",
     image: getMeta("og:image") || "",
-    date: ""
+    date: foundDate // ใส่วันที่ที่หาได้ตรงนี้
   };
 
   // --- ส่วน AI ช่วย (Gemini) ---
-  const shortHtml = rawHtml.substring(0, 20000); 
-  try {
-    const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
-    const prompt = `Extract metadata from this HTML. 
-    1. Title: "${result.title}" (If empty, find best title).
-    2. Image: "${result.image}" (If empty, find best image URL).
-    3. Date: Find publication date in YYYY-MM-DD format.
-    Return JSON ONLY: {"title":"...","image":"...","date":"..."}
-    HTML Snippet: ${shortHtml}`;
+  // ใช้เฉพาะเมื่อหา Title หรือ Date ไม่เจอจริงๆ เท่านั้น
+  if (!result.title || !result.date) {
+      const shortHtml = rawHtml.substring(0, 20000); 
+      try {
+        const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
+        // 🟢 เปลี่ยนชื่อ Model เป็นตัวที่เสถียรขึ้น (gemini-1.5-flash-latest) แก้ Error 404
+        const prompt = `Extract metadata. 
+        1. Title: "${result.title}" (If empty, find best title).
+        2. Image: "${result.image}" (If empty, find best image).
+        3. Date: "${result.date}" (If empty, find publication date YYYY-MM-DD).
+        Return JSON ONLY: {"title":"...","image":"...","date":"..."}
+        HTML: ${shortHtml}`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
 
-    const aiData = await response.json();
-    const textResponse = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (textResponse) {
-      const cleanJson = textResponse.replace(/```json|```/g, '').trim();
-      const aiResult = JSON.parse(cleanJson);
-      
-      if (!result.title) result.title = aiResult.title;
-      if (!result.image) result.image = aiResult.image;
-      result.date = aiResult.date; 
-    }
-  } catch (e) {
-    console.warn("AI Help failed, using basic data");
+        if (response.ok) {
+            const aiData = await response.json();
+            const textResponse = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textResponse) {
+              const cleanJson = textResponse.replace(/```json|```/g, '').trim();
+              const aiResult = JSON.parse(cleanJson);
+              if (!result.title) result.title = aiResult.title;
+              if (!result.image) result.image = aiResult.image;
+              if (!result.date) result.date = aiResult.date; 
+            }
+        }
+      } catch (e) {
+        console.warn("AI Help failed", e);
+      }
   }
 
   return result;
