@@ -68,6 +68,15 @@ const formatDate = (val) => {
     });
   } catch (e) { return "-"; }
 };
+// --- ฟังก์ชันที่หายไป (เอาไปวางไว้กลุ่มเดียวกับ formatDate ข้างบน) ---
+const getWeekNumber = (d) => {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
+  return `Week ${weekNo}`;
+};
+
 // ฟังก์ชันดึงชื่อเว็บ (Domain)
 const getDomain = (url) => {
   try { return new URL(url).hostname.replace('www.', ''); } catch (e) { return 'External'; }
@@ -867,7 +876,7 @@ const formatForInput = (timestamp) => {
       const end = new Date(newsEndDate).setHours(23,59,59,999);
       filteredLinks = publishedLinks.filter(l => {
         if(!l.createdAt) return false;
-        // 🟢 แก้ไข: แปลงเป็น Date ก่อนเรียก .getTime()
+        // 🟢 แก้ไข: แปลงให้เป็น Date ก่อนเสมอ (กันพัง)
         const dObj = l.createdAt.toDate ? l.createdAt.toDate() : new Date(l.createdAt);
         const d = dObj.getTime();
         return d >= start && d <= end;
@@ -879,10 +888,10 @@ const formatForInput = (timestamp) => {
     filteredLinks.forEach(link => {
         if (!link.createdAt) return;
         
-        // 🟢 แก้ไข: แปลง Timestamp เป็น Date Object ให้ถูกต้องก่อนนำไปใช้
+        // 🟢 แก้ไข: แปลงให้เป็น Date ก่อนเสมอ (กันพัง)
         const dateObj = link.createdAt.toDate ? link.createdAt.toDate() : new Date(link.createdAt);
         
-        // ป้องกันกรณีวันที่ Error (Invalid Date)
+        // กันเหนียว: ถ้าวันทียัง Error อีก ให้ข้ามไปเลย
         if (isNaN(dateObj.getTime())) return;
 
         const weekKey = `${getWeekNumber(dateObj)} (${dateObj.getFullYear()})`;
