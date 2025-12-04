@@ -91,66 +91,88 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันดึงข้อมูลอัตโนมัติ (ฉบับ Super Fetch: มีระบบสำรอง)
+// ฟังก์ชันดึงข้อมูลอัตโนมัติ (ฉบับไม้ตาย: DOMParser)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
 
-  // ฟังก์ชันย่อยสำหรับแกะ HTML (Backup Plan)
-  const parseHtml = (html) => {
-      const getMeta = (prop) => {
-          const match = html.match(new RegExp(`<meta property="${prop}" content="([^"]*)"`, 'i')) || 
-                        html.match(new RegExp(`<meta name="${prop}" content="([^"]*)"`, 'i'));
-          return match ? match[1] : null;
-      };
-      return {
-          title: getMeta('og:title') || getMeta('twitter:title') || html.match(/<title>(.*?)<\/title>/i)?.[1],
-          image: getMeta('og:image') || getMeta('twitter:image'),
-          date: getMeta('article:published_time') || getMeta('date'),
-      };
+  // ฟังก์ชันย่อย: แปลง HTML ดิบ เป็นข้อมูล (ใช้ DOMParser แม่นยำกว่า Regex)
+  const parseFromHTML = (html) => {
+      try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, "text/html");
+          
+          // ตัวช่วยดึงค่าจาก Meta Tag
+          const getMeta = (selectors) => {
+              for (let sel of selectors) {
+                  const el = doc.querySelector(sel);
+                  if (el) return el.getAttribute('content') || el.getAttribute('value');
+              }
+              return null;
+          };
+
+          // ไล่หา Title จากหลายๆ ที่ที่เป็นไปได้
+          const title = getMeta([
+              'meta[property="og:title"]', 
+              'meta[name="twitter:title"]', 
+              'meta[name="title"]'
+          ]) || doc.querySelector('title')?.innerText;
+
+          // ไล่หา Image
+          const image = getMeta([
+              'meta[property="og:image"]', 
+              'meta[name="twitter:image"]',
+              'meta[itemprop="image"]'
+          ]);
+
+          // ไล่หา Date
+          const date = getMeta([
+              'meta[property="article:published_time"]',
+              'meta[name="pubdate"]',
+              'meta[name="date"]',
+              'meta[name="publish_date"]'
+          ]);
+
+          // --- Logic พิเศษสำหรับ Facebook/Instagram ---
+          // ถ้า Title เป็นแค่ "Facebook" ให้ลองไปขุดเอา Description มาแทน
+          let finalTitle = title;
+          const isSocial = url.includes('facebook.com') || url.includes('instagram.com') || url.includes('x.com');
+          if (isSocial && (!title || title === 'Facebook' || title === 'Instagram' || title.includes('Log into'))) {
+              const desc = getMeta(['meta[name="description"]', 'meta[property="og:description"]']);
+              if (desc) finalTitle = desc.substring(0, 100) + "...";
+          }
+
+          if (finalTitle) {
+              return { title: finalTitle, image: image, date: date };
+          }
+      } catch (e) { console.error("Parse error:", e); }
+      return null;
   };
 
+  // --- STEP 1: ลองใช้ Microlink ก่อน (เพราะง่ายและเร็วกว่า) ---
   try {
-    // --- ก๊อก 1: ลองใช้ Microlink (ตัวเดิม) ก่อน ---
     const response = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
     const data = await response.json();
-    
-    if (data.status === 'success') {
-      const meta = data.data;
-      
-      // ถ้าเป็น Facebook/Social ให้ใช้ Logic เดิม (เอา Caption มาโชว์)
-      let finalTitle = meta.title;
-      const isSocial = url.includes('facebook.com') || url.includes('instagram.com') || url.includes('twitter.com') || url.includes('x.com');
-      if (isSocial && meta.description && (!meta.title || meta.title === 'Facebook' || meta.title.includes('Log into'))) {
-          finalTitle = meta.description.substring(0, 100) + "..."; 
-      }
-
+    if (data.status === 'success' && data.data.title && data.data.title !== 'Facebook') {
       return {
-        title: finalTitle,
-        image: meta.image?.url,
-        date: meta.date || meta.published || meta.updated,
+        title: data.data.title,
+        image: data.data.image?.url,
+        date: data.data.date,
       };
     }
-  } catch (error) { console.log("Microlink failed, trying backup..."); }
+  } catch (error) { /* ข้ามไป Step 2 */ }
 
-  // --- ก๊อก 2: ถ้า Microlink พัง/ไม่เจอ ให้ใช้ AllOrigins (Proxy) ไปแงะ HTML เอง ---
+  // --- STEP 2: ถ้า Step 1 พัง ให้ใช้ AllOrigins + DOMParser (เจาะเกราะ) ---
   try {
       const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
       const response = await fetch(proxyUrl);
       const data = await response.json();
       
       if (data.contents) {
-          const meta = parseHtml(data.contents);
-          if (meta.title) { // ถ้าแงะเจอ Title ค่อยส่งกลับ
-              return {
-                  title: meta.title,
-                  image: meta.image,
-                  date: meta.date
-              };
-          }
+          return parseFromHTML(data.contents);
       }
   } catch (e) { console.error("Backup fetch failed:", e); }
 
-  return null; // ยอมแพ้
+  return null; // ถ้าไม่เจอจริงๆ ก็ยอมแพ้ (แล้วให้ระบบ Alert ทำงาน)
 };
 
 // --- COMPONENTS ---
