@@ -91,24 +91,29 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันดึงข้อมูลแบบ "Hybrid + Gemini Parser" (พร้อม API Key)
+// ฟังก์ชันดึงข้อมูลแบบ "God Mode" (JsonLink + Proxy + Gemini Parser)
+// วิธีนี้แก้ทางเว็บที่ป้องกันบอทได้ดีที่สุดในฝั่ง Client-side
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
 
   // 1. 🔑 API Key ของคุณ (Gemini 1.5 Flash)
   const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
 
-  // Helper: แต่งข้อมูล
+  // Helper: แต่งข้อมูลให้สวย (Clean Data)
   const refineData = (data) => {
       let { title, image, date, description } = data;
+      // เช็คว่าเป็น Social Media ไหม
       const isSocial = url.includes('facebook.com') || url.includes('instagram.com') || url.includes('twitter.com') || url.includes('x.com');
+      
+      // แก้ชื่อ Facebook: ถ้า Title เป็น "Facebook" หรือ "Log in" ให้เอา Caption มาใส่แทน
       if (isSocial && description && (!title || title === 'Facebook' || title === 'Instagram' || title.includes('Log into'))) {
           title = description.substring(0, 100) + "...";
       }
       return { title, image, date };
   };
 
-  // --- 🚀 ก๊อก 1: JsonLink (ของฟรี เร็วสุด) ---
+  // --- 🚀 ก๊อก 1: JsonLink (หน่วยสอดแนม - เร็วและฟรี) ---
+  // ใช้ตัวนี้ก่อนกับเว็บข่าวทั่วไปที่เปิดเผยข้อมูล
   try {
     const res = await fetch(`https://jsonlink.io/api/extract?url=${encodeURIComponent(url)}`);
     const data = await res.json();
@@ -120,24 +125,31 @@ const fetchLinkMetadata = async (url) => {
             date: data.date 
         });
     }
-  } catch (e) { console.log("JsonLink failed..."); }
+  } catch (e) { console.log("JsonLink missed, switching to AI..."); }
 
-  // --- 🤖 ก๊อก 2: Gemini AI (ฉบับ Parser - ไม่ต้องเปิด Google Search) ---
+  // --- 🤖 ก๊อก 2: Proxy + Gemini Parser (หน่วยรบพิเศษ - เจาะเกราะ) ---
+  // ใช้สำหรับ Facebook หรือเว็บที่บล็อกบอท
   if (GEMINI_API_KEY) {
       try {
-        // 1. ใช้ Proxy ไปดูด HTML ดิบๆ มาก่อน (เร็วและไม่ค่อยโดนบล็อก)
+        // 1. ให้ Proxy (AllOrigins) วิ่งไปโหลด "เนื้อหา HTML" มาให้เราก่อน (เพื่อหลบการบล็อก CORS)
         const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
         const proxyData = await proxyRes.json();
         
         if (proxyData.contents) {
-            // 2. ส่ง HTML ดิบๆ ให้ Gemini ช่วยแกะ
-            // ตัด HTML ให้สั้นลงหน่อย (เอาแค่ 30,000 ตัวอักษรแรก) เพื่อประหยัด Token และเร็วขึ้น
-            const rawHtml = proxyData.contents.substring(0, 30000); 
+            // 2. ส่ง HTML ดิบๆ ให้ Gemini ช่วยแกะ (AI ฉลาดกว่า Code ปกติมาก)
+            // ตัด HTML ให้สั้นลง (เอาแค่ 40,000 ตัวอักษรแรก) เพื่อให้ทำงานเร็วและไม่เปลือง Token
+            const rawHtml = proxyData.contents.substring(0, 40000); 
 
-            const prompt = `Analyze this HTML content and extract metadata. 
-            Return ONLY a JSON object with keys: "title", "image" (URL), "date" (YYYY-MM-DD or null).
-            For 'date', try to find publication date in meta tags or content.
-            HTML: ${rawHtml}`;
+            // คำสั่ง (Prompt) บอกให้ AI ทำงาน
+            const prompt = `Analyze this HTML and extract:
+            1. Title (if it's "Facebook" or "Log in", try to find the post caption/description instead).
+            2. Main Image URL.
+            3. Publication Date (format YYYY-MM-DD).
+            
+            Return ONLY a JSON object: { "title": "...", "image": "...", "date": "..." }
+            
+            HTML Content:
+            ${rawHtml}`;
             
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
                 method: "POST",
@@ -151,14 +163,15 @@ const fetchLinkMetadata = async (url) => {
             const textResponse = aiRes.candidates?.[0]?.content?.parts?.[0]?.text;
             
             if (textResponse) {
+                // ล้าง Format ที่ AI อาจแถมมา
                 const cleanJson = textResponse.replace(/```json|```/g, '').trim();
                 const aiData = JSON.parse(cleanJson);
                 
-                if (aiData.title) {
+                if (aiData.title || aiData.image) {
                     return {
                         title: aiData.title,
                         image: aiData.image,
-                        date: aiData.date // Gemini จะพยายามหา Date มาให้
+                        date: aiData.date
                     };
                 }
             }
@@ -166,7 +179,7 @@ const fetchLinkMetadata = async (url) => {
       } catch (e) { console.error("Gemini Parser failed:", e); }
   }
 
-  return null; // ยอมแพ้ (เด้งไปกรอกมือ)
+  return null; // ถ้าไม่รอดจริงๆ ให้ส่งค่าว่างกลับไป (ระบบจะเด้ง Alert ให้กรอกเอง)
 };
 
 // --- COMPONENTS ---
