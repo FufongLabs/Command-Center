@@ -451,6 +451,20 @@ export default function TeamTaweeApp() {
     logActivity("Add Link", finalData.title); 
   });
   
+  // --- วางต่อจาก addPublishedLink เดิม ---
+  const editPublishedLink = (link) => openFormModal("แก้ไขข่าว", [
+    {key:'title', label:'หัวข้อข่าว', defaultValue: link.title},
+    {key:'url', label:'URL ข่าว', defaultValue: link.url},
+    {key:'imageUrl', label:'Link รูปภาพ', defaultValue: link.imageUrl}, 
+    {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: link.platform}
+  ], async(d)=>{ 
+    await updateDoc(doc(db,"published_links",link.id), {
+      ...d,
+      updatedAt:serverTimestamp() // อัปเดตเวลาด้วย
+    }); 
+    logActivity("Edit Link", d.title); 
+  });
+
   const deleteLink = async (id) => { if(confirm("ลบ?")) { await deleteDoc(doc(db,"published_links",id)); logActivity("Delete Link", id); }};
   const updateDist = async (id, c) => updateDoc(doc(db,"channels",id), {count:Math.max(0,c||0)});
   const deleteChannel = async (id) => { if(confirm("ลบ?")) { await deleteDoc(doc(db,"channels",id)); logActivity("Delete Channel", id); }};
@@ -506,6 +520,7 @@ export default function TeamTaweeApp() {
 
   // --- DASHBOARD: Classic Style (Donut + 3 Columns) ---
   const renderDashboard = () => {
+    // 1. Logic การคำนวณ
     const taskStats = { done: 0, doing: 0, waiting: 0, total: 0 };
     tasks.forEach(t => {
       if (t.status !== 'Canceled') {
@@ -516,6 +531,7 @@ export default function TeamTaweeApp() {
       }
     });
 
+    // 2. ส่วนแสดงผล
     return (
       <div className="space-y-6 animate-fadeIn">
         <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" action={
@@ -533,6 +549,7 @@ export default function TeamTaweeApp() {
         } />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Col 1: Donut Chart */}
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center relative overflow-hidden">
             <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left">Task Status</p>
             <StatusDonutChart stats={taskStats} />
@@ -543,6 +560,7 @@ export default function TeamTaweeApp() {
             </div>
           </div>
 
+          {/* Col 2 & 3: Recent Tasks */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
              <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <Activity className="w-5 h-5 text-blue-500"/> ความเคลื่อนไหวล่าสุด
@@ -566,6 +584,34 @@ export default function TeamTaweeApp() {
              </div>
           </div>
         </div>
+
+        {/* 🟢 ส่วนที่เพิ่มเข้ามา: หน้าต่าง Popup แก้ไขงาน */}
+        {editingTask && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1200] p-4 animate-fadeIn">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
+                    <button onClick={() => setEditingTask(null)} className="absolute top-4 right-4 p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
+                    <h3 className="font-bold text-xl text-slate-800 mb-6">แก้ไขงาน</h3>
+                    <div className="space-y-4">
+                        <input type="text" value={editingTask.title} onChange={e=>setEditingTask({...editingTask, title:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" />
+                        <div>
+                            <input type="text" value={editingTask.tag} onChange={e=>setEditingTask({...editingTask, tag:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="Tag..." />
+                            <div className="mt-2 flex flex-wrap gap-2">{PRESET_TAGS.slice(0,5).map(t=><button key={t} onClick={()=>setEditingTask({...editingTask, tag:t})} className="text-[10px] bg-slate-100 px-2 py-1 rounded border hover:bg-blue-100">{t}</button>)}</div>
+                        </div>
+                        <input type="text" value={editingTask.role||""} onChange={e=>setEditingTask({...editingTask, role:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="ผู้รับผิดชอบ" />
+                        <div className="grid grid-cols-2 gap-4">
+                            <select value={editingTask.status} onChange={e=>setEditingTask({...editingTask, status:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm"><option>To Do</option><option>In Progress</option><option>In Review</option><option>Done</option><option>Idea</option><option>Waiting list</option><option>Canceled</option></select>
+                            <input type="date" value={editingTask.deadline} onChange={e=>setEditingTask({...editingTask, deadline:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm" />
+                        </div>
+                        <input type="text" value={editingTask.link} onChange={e=>setEditingTask({...editingTask, link:e.target.value})} className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" placeholder="Link..." />
+                        <div className="flex justify-between pt-4">
+                            <button onClick={async()=>{if(confirm("ลบ?")){setIsGlobalLoading(true); await deleteDoc(doc(db,"tasks",editingTask.id)); logActivity("Delete Task", editingTask.title); setIsGlobalLoading(false); setEditingTask(null);}}} className="text-red-500 text-sm font-bold flex items-center gap-1"><Trash2 className="w-4 h-4"/> ลบ</button>
+                            <button onClick={()=>saveTaskChange(editingTask)} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold shadow hover:bg-blue-700">บันทึก</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
       </div>
     );
   };
@@ -814,9 +860,18 @@ export default function TeamTaweeApp() {
                                             
                                             <div className="p-4 flex flex-col flex-1">
                                                 <div className="flex justify-between items-start mb-2">
-                                                    <span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span>
-                                                    <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"><Trash2 className="w-3.5 h-3.5"/></button>
-                                                </div>
+    <span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span>
+    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+        {/* ปุ่มแก้ไข (ใหม่) */}
+        <button onClick={()=>editPublishedLink(link)} className="text-slate-300 hover:text-blue-500" title="แก้ไข">
+            <Edit2 className="w-3.5 h-3.5"/>
+        </button>
+        {/* ปุ่มลบ (เดิม) */}
+        <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500" title="ลบ">
+            <Trash2 className="w-3.5 h-3.5"/>
+        </button>
+    </div>
+</div>
                                                 <a href={link.url} target="_blank" rel="noreferrer" className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 hover:text-blue-600 transition mb-2">
                                                     {link.title}
                                                 </a>
