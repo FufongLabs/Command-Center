@@ -64,6 +64,13 @@ const formatDate = (isoString) => {
     });
   } catch (e) { return "-"; }
 };
+const getWeekNumber = (d) => {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
+  return `Week ${weekNo}`;
+};
 
 // --- COMPONENTS ---
 
@@ -332,6 +339,9 @@ export default function TeamTaweeApp() {
   const [isGlobalLoading, setIsGlobalLoading] = useState(false); 
   const [isDataLoading, setIsDataLoading] = useState(true); 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  const [newsStartDate, setNewsStartDate] = useState('');
+  const [newsEndDate, setNewsEndDate] = useState('');
   
   const [editingTask, setEditingTask] = useState(null);
   const [urgentModal, setUrgentModal] = useState(null); 
@@ -400,7 +410,20 @@ export default function TeamTaweeApp() {
   const updateChannel = (c) => openFormModal("แก้ไขช่องทาง", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:c.type}, {key:'url', label:'URL', defaultValue:c.url}], async(d)=>{ await updateDoc(doc(db,"channels",c.id), d); logActivity("Edit Channel", c.name); });
   const addMedia = () => openFormModal("เพิ่มสื่อ", [{key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:'NEWS Website'}, {key:'phone', label:'เบอร์'}, {key:'line', label:'Line'}], async(d)=>{ await addDoc(collection(db,"media"), {...d, active:true}); logActivity("Add Media", d.name); });
   const editMedia = (c) => openFormModal("แก้ไขสื่อ", [{key:'name', label:'ชื่อ', defaultValue:c.name}, {key:'type', label:'ประเภท', type:'select', options: ASSET_TYPES, defaultValue:c.type}, {key:'phone', label:'เบอร์', defaultValue:c.phone}, {key:'line', label:'Line', defaultValue:c.line}], async(d)=>{ await updateDoc(doc(db,"media",c.id), d); logActivity("Edit Media", c.name); });
-  const addPublishedLink = () => openFormModal("เพิ่มลิงก์ข่าว", [{key:'title', label:'หัวข้อ'}, {key:'url', label:'URL'}, {key:'platform', label:'Platform'}], async(d)=>{ await addDoc(collection(db,"published_links"), {...d, createdBy:currentUser.displayName, createdAt:serverTimestamp()}); logActivity("Add Link", d.title); });
+  const addPublishedLink = () => openFormModal("เพิ่มลิงก์ข่าว", [
+    {key:'title', label:'หัวข้อข่าว'},
+    {key:'url', label:'URL ข่าว'},
+    {key:'imageUrl', label:'Link รูปภาพ (Thumbnail)', placeholder: 'https://...'}, 
+    {key:'platform', label:'Platform (เช่น Facebook, Website)'}
+  ], async(d)=>{ 
+    await addDoc(collection(db,"published_links"), {
+      ...d, 
+      imageUrl: d.imageUrl || "", 
+      createdBy:currentUser.displayName, 
+      createdAt:serverTimestamp()
+    }); 
+    logActivity("Add Link", d.title); 
+  });
   
   const deleteLink = async (id) => { if(confirm("ลบ?")) { await deleteDoc(doc(db,"published_links",id)); logActivity("Delete Link", id); }};
   const updateDist = async (id, c) => updateDoc(doc(db,"channels",id), {count:Math.max(0,c||0)});
@@ -446,6 +469,7 @@ export default function TeamTaweeApp() {
 
   const navItems = [
     { id: 'dashboard', title: 'ภาพรวม', subtitle: 'Dashboard', icon: LayoutDashboard },
+    { id: 'newsroom', title: 'ห้องข่าว & สื่อ', subtitle: 'Newsroom', icon: Globe, color: 'text-indigo-500' }, // <--- เพิ่มบรรทัดนี้
     { id: 'strategy', title: 'กระดาน 4 แกน', subtitle: 'Strategy', icon: Megaphone },
     { id: 'masterplan', title: 'แผนงานหลัก', subtitle: 'Master Plan', icon: Map },
     { id: 'rapidresponse', title: 'ปฏิบัติการด่วน', subtitle: 'Rapid Response', icon: Zap, color: 'text-red-500' },
@@ -457,95 +481,65 @@ export default function TeamTaweeApp() {
   if (!currentUser) return <LoginScreen />;
   if (userProfile?.status === 'Pending') return <PendingScreen onLogout={() => signOut(auth)} />;
 
+// --- เริ่มต้นส่วนที่ต้อง Copy ไปวาง ---
+  const renderDashboard = () => {
+    // 1. ส่วนคำนวณ Logic
+    const taskStats = { done: 0, doing: 0, waiting: 0, total: 0 };
+    tasks.forEach(t => {
+      if (t.status !== 'Canceled') {
+        taskStats.total++;
+        if (t.status === 'Done') taskStats.done++;
+        else if (t.status === 'In Progress' || t.status === 'In Review') taskStats.doing++;
+        else taskStats.waiting++;
+      }
+    });
+
+    // 2. ส่วนแสดงผล (Return JSX)
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" action={
+          <div className="flex gap-2">
+            <button onClick={() => setIsSearchOpen(true)} className="p-2 bg-white border rounded-lg text-slate-500 hover:bg-slate-50">
+               🔍 {/* ตรงนี้คือปุ่มค้นหา */}
+            </button>
+            <button onClick={() => addNewTask('solver')} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-blue-700 transition-colors">
+              + งานทั่วไป
+            </button>
+            <button onClick={createUrgentCase} className="bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-red-700 transition-colors">
+              แจ้งเหตุด่วน!
+            </button>
+          </div>
+        } />
+
+        {/* การ์ดแสดงสถิติ */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="p-6 rounded-2xl bg-slate-100 text-slate-700 flex flex-col items-center justify-center">
+            <span className="text-3xl font-bold">{taskStats.total}</span>
+            <span className="text-sm opacity-80">งานทั้งหมด</span>
+          </div>
+          <div className="p-6 rounded-2xl bg-yellow-100 text-yellow-700 flex flex-col items-center justify-center">
+            <span className="text-3xl font-bold">{taskStats.waiting}</span>
+            <span className="text-sm opacity-80">รอรับเรื่อง</span>
+          </div>
+          <div className="p-6 rounded-2xl bg-blue-100 text-blue-700 flex flex-col items-center justify-center">
+            <span className="text-3xl font-bold">{taskStats.doing}</span>
+            <span className="text-sm opacity-80">กำลังดำเนินการ</span>
+          </div>
+          <div className="p-6 rounded-2xl bg-green-100 text-green-700 flex flex-col items-center justify-center">
+            <span className="text-3xl font-bold">{taskStats.done}</span>
+            <span className="text-sm opacity-80">เสร็จสิ้น</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  // --- จบส่วนที่ต้อง Copy ---
   const renderContent = () => {
     if (isDataLoading) return <div className="flex h-64 items-center justify-center text-slate-400"><RefreshCw className="w-6 h-6 animate-spin mr-2"/> Loading Database...</div>;
 
     switch (activeTab) {
       case 'dashboard':
-        const taskStats = { done: 0, doing: 0, waiting: 0, total: 0 };
-        tasks.forEach(t => { 
-          if(t.status!=='Canceled') {
-             taskStats.total++;
-             if(t.status==='Done') taskStats.done++;
-             else if(t.status==='In Progress' || t.status==='In Review') taskStats.doing++;
-             else taskStats.waiting++;
-          }
-        });
-        return (
-          <div className="space-y-6 animate-fadeIn">
-             <PageHeader title="ภาพรวมสถานการณ์" subtitle="Overview & Statistics" action={
-                 <div className="flex gap-2">
-                    <button onClick={() => setIsSearchOpen(true)} className="p-2 bg-white border rounded-lg text-slate-500 hover:text-blue-600 hover:border-blue-300 shadow-sm"><Search className="w-5 h-5" /></button>
-                    <button onClick={() => addNewTask('solver')} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2"><Plus className="w-4 h-4" /> เพิ่มงาน</button>
-                    <button onClick={createUrgentCase} className="bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> เคสด่วน</button>
-                 </div>
-             } />
-             {/* 3 Columns Layout */}
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center relative overflow-hidden">
-                    <p className="text-slate-500 text-xs font-bold uppercase mb-6 w-full text-left">Task Status</p>
-                    <StatusDonutChart stats={taskStats} />
-                    <div className="flex justify-center gap-6 mt-6 text-xs font-bold w-full">
-                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-emerald-500 mx-auto mb-1"></div> เสร็จ {taskStats.done}</div>
-                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-blue-500 mx-auto mb-1"></div> ทำ {taskStats.doing}</div>
-                        <div className="text-center"><div className="w-3 h-3 rounded-full bg-slate-300 mx-auto mb-1"></div> รอ {taskStats.waiting}</div>
-                    </div>
-                </div>
-                {/* Middle: Strategy Preview (FIXED: Content List Restored) */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-                    <div className="flex justify-between items-center mb-3"><p className="text-slate-500 text-xs font-bold uppercase">Strategy 4 แกน</p><button onClick={()=>navigateTo('strategy')} className="text-xs text-blue-600 font-bold hover:underline">ไปที่กระดาน →</button></div>
-                    <div className="grid grid-cols-2 gap-3 flex-1">
-                        {['solver', 'principles', 'defender', 'expert'].map(k=><div key={k} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-center items-center cursor-pointer hover:border-blue-300 transition h-full" onClick={()=>navigateTo('strategy')}>
-                           <div className="flex justify-between w-full mb-2 pb-1 border-b border-slate-200">
-                               <span className="text-[10px] font-bold uppercase text-slate-400 mb-1 truncate w-full text-center">{COLUMN_LABELS[k].split(' ')[1]}</span>
-                               <span className="text-[10px] font-black bg-white px-1.5 rounded text-slate-700 shadow-sm">{groupedTasks[k]?.length||0}</span>
-                           </div>
-                           <div className="w-full space-y-1.5">
-                              {(groupedTasks[k]||[]).slice(0,2).map(t=>(
-                                  <div key={t.id} className="flex items-center gap-1.5 w-full"><div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${t.status==='Done'?'bg-emerald-500':'bg-blue-400'}`}></div><p className="text-[10px] text-slate-600 truncate flex-1">{t.title}</p></div>
-                              ))}
-                              {(groupedTasks[k]?.length > 2) && <p className="text-[9px] text-slate-400 pl-3">+ อีก {groupedTasks[k].length - 2} งาน</p>}
-                              {(groupedTasks[k]?.length === 0) && <p className="text-[9px] text-slate-300 text-center py-2">- ว่าง -</p>}
-                           </div>
-                        </div>)}
-                    </div>
-                </div>
-             </div>
-
-             {/* Bottom Row: Distribution & Master & News */}
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-                    <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-slate-800">Distribution Hub</h3><button onClick={()=>navigateTo('assets')} className="text-xs text-blue-600 hover:underline">จัดการ →</button></div>
-                    <div className="grid grid-cols-2 gap-3 flex-1 content-start">
-                        {channels.slice(0,4).map(item => (
-                            <div key={item.id} className="bg-slate-50 p-2 rounded border border-slate-100 text-center relative group">
-                                <h4 className="font-bold text-slate-600 text-[10px] truncate uppercase">{item.name}</h4>
-                                <span className="text-2xl font-black text-blue-600 block">{item.count||0}</span>
-                                <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition absolute -top-2 inset-x-0">
-                                    <button onClick={() => updateDist(item.id, (item.count||0)-1)} className="bg-white shadow border rounded-full p-0.5 hover:text-red-600 z-10"><Minus className="w-3 h-3" /></button>
-                                    <button onClick={() => updateDist(item.id, (item.count||0)+1)} className="bg-white shadow border rounded-full p-0.5 hover:text-blue-600 z-10"><Plus className="w-3 h-3" /></button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                {/* Master Plan */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-                    <div className="flex justify-between items-center mb-4"><p className="text-slate-500 text-xs font-bold uppercase">Master Plan</p><button onClick={()=>navigateTo('masterplan')} className="text-xs text-blue-600 font-bold hover:underline">ดูทั้งหมด →</button></div>
-                    <div className="space-y-4 flex-1">
-                        {plans.slice(0,3).map(p=><div key={p.id}><div className="flex justify-between text-sm mb-1"><span className="font-bold text-slate-700 truncate w-40">{p.title}</span><span className="text-slate-500 text-xs">{p.progress || 0}%</span></div><div className="w-full bg-slate-100 rounded-full h-1.5"><div className="bg-indigo-600 h-1.5 rounded-full" style={{width:`${p.progress || 0}%`}}></div></div></div>)}
-                    </div>
-                </div>
-                {/* News Links */}
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col overflow-hidden h-full">
-                    <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition border-b border-slate-100" onClick={()=>setIsDistOpen(!isDistOpen)}>
-                        <div className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-slate-500"/><h3 className="font-bold text-sm text-slate-700">ลิงก์ข่าวที่ลงแล้ว (News Links)</h3></div>{isDistOpen?<ChevronUp className="w-4 h-4 text-slate-400"/>:<ChevronDown className="w-4 h-4 text-slate-400"/>}
-                    </div>
-                    {isDistOpen && <div className="p-4 max-h-60 overflow-y-auto custom-scrollbar bg-white"><button onClick={addPublishedLink} className="w-full text-xs bg-blue-50 text-blue-600 py-2 rounded border font-bold mb-3 hover:bg-blue-100">+ เพิ่มลิงก์</button><div className="space-y-2">{publishedLinks.map(l=><div key={l.id} className="flex justify-between p-2 border rounded hover:bg-slate-50 group"><a href={l.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 truncate w-full font-medium block">{l.title}</a><button onClick={()=>deleteLink(l.id)}><Trash2 className="w-3 h-3 text-slate-300 hover:text-red-500"/></button></div>)}</div></div>}
-                </div>
-             </div>
-          </div>
-        );
+      return renderDashboard();
       
       case 'admin':
         if(userProfile?.role !== 'Admin') return <div className="p-10 text-center text-red-500">Access Denied</div>;
@@ -701,6 +695,112 @@ export default function TeamTaweeApp() {
           </div>
       </div>
   );
+
+  const renderNewsroom = () => {
+    // 1. Filter ข้อมูลตามวันที่เลือก
+    let filteredLinks = publishedLinks;
+    if (newsStartDate && newsEndDate) {
+      const start = new Date(newsStartDate).setHours(0,0,0,0);
+      const end = new Date(newsEndDate).setHours(23,59,59,999);
+      filteredLinks = publishedLinks.filter(l => {
+        if(!l.createdAt) return false;
+        const d = l.createdAt.toDate().getTime();
+        return d >= start && d <= end;
+      });
+    }
+
+    // 2. Group ข้อมูลตาม Week -> Day
+    const groupedData = {};
+    filteredLinks.forEach(link => {
+        if (!link.createdAt) return;
+        const dateObj = link.createdAt.toDate();
+        const weekKey = `${getWeekNumber(dateObj)} (${dateObj.getFullYear()})`;
+        const dayKey = dateObj.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
+
+        if (!groupedData[weekKey]) groupedData[weekKey] = {};
+        if (!groupedData[weekKey][dayKey]) groupedData[weekKey][dayKey] = [];
+        groupedData[weekKey][dayKey].push(link);
+    });
+
+    return (
+      <div className="space-y-6 animate-fadeIn pb-20">
+        <PageHeader title="ห้องข่าว & สื่อประชาสัมพันธ์" subtitle="Newsroom & Public Relations" 
+          action={
+            <div className="flex flex-wrap items-end gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-400 font-bold ml-1">ตั้งแต่วันที่</span>
+                    <input type="date" value={newsStartDate} onChange={e=>setNewsStartDate(e.target.value)} className="text-xs border rounded-lg p-1.5 outline-none focus:border-blue-500 text-slate-600"/>
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-400 font-bold ml-1">ถึงวันที่</span>
+                    <input type="date" value={newsEndDate} onChange={e=>setNewsEndDate(e.target.value)} className="text-xs border rounded-lg p-1.5 outline-none focus:border-blue-500 text-slate-600"/>
+                </div>
+                <button onClick={() => {setNewsStartDate(''); setNewsEndDate('');}} className="p-2 text-slate-400 hover:text-red-500" title="ล้างค่า"><RefreshCw className="w-4 h-4"/></button>
+                <div className="w-px h-8 bg-slate-200 mx-1"></div>
+                <button onClick={addPublishedLink} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md flex items-center gap-2 h-fit mb-0.5"><Plus className="w-4 h-4" /> เพิ่มข่าว</button>
+            </div>
+          } 
+        />
+
+        {Object.keys(groupedData).length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-400">
+                <Globe className="w-12 h-12 mb-3 opacity-20"/>
+                <p>ไม่พบข้อมูลข่าวในช่วงเวลาที่เลือก</p>
+            </div>
+        ) : (
+            Object.keys(groupedData).sort((a,b) => b.localeCompare(a)).map(week => ( 
+                <div key={week} className="bg-white/50 rounded-3xl p-6 border border-slate-200/60 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 left-0 bg-blue-600 text-white text-xs font-black px-4 py-1.5 rounded-br-2xl shadow-sm z-10">
+                        {week}
+                    </div>
+                    
+                    <div className="space-y-8 mt-4">
+                        {Object.keys(groupedData[week]).sort((a,b) => b.localeCompare(a)).map(day => (
+                            <div key={day}>
+                                <h3 className="flex items-center gap-2 text-slate-700 font-bold mb-4 pb-2 border-b border-slate-200">
+                                    <Calendar className="w-4 h-4 text-blue-500"/> {day}
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {groupedData[week][day].map(link => (
+                                        <div key={link.id} className="group bg-white rounded-xl overflow-hidden border border-slate-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
+                                            <div className="aspect-video bg-slate-100 relative overflow-hidden">
+                                                {link.imageUrl ? (
+                                                    <img src={link.imageUrl} alt={link.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                                ) : (
+                                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                                                        <FileText className="w-10 h-10 mb-1"/>
+                                                        <span className="text-[10px]">No Image</span>
+                                                    </div>
+                                                )}
+                                                <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                                    <ExternalLink className="w-8 h-8 text-white drop-shadow-md"/>
+                                                </a>
+                                            </div>
+                                            
+                                            <div className="p-4 flex flex-col flex-1">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span>
+                                                    <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"><Trash2 className="w-3.5 h-3.5"/></button>
+                                                </div>
+                                                <a href={link.url} target="_blank" rel="noreferrer" className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 hover:text-blue-600 transition mb-2">
+                                                    {link.title}
+                                                </a>
+                                                <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400">
+                                                    <span>{formatDate(link.createdAt?.toDate())}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
