@@ -91,25 +91,31 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันดึงข้อมูลอัตโนมัติ (แก้ไข: รองรับวันที่หลายแบบ)
+// ฟังก์ชันดึงข้อมูลอัตโนมัติ (ฉบับอัปเกรด: แก้ปัญหา Title Facebook/Instagram)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
   try {
     const response = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
     const data = await response.json();
-    
     if (data.status === 'success') {
       const meta = data.data;
+      
+      // --- จุดที่เพิ่ม: Logic พิเศษสำหรับ Facebook/Instagram ---
+      let finalTitle = meta.title;
+      const isSocial = url.includes('facebook.com') || url.includes('instagram.com') || url.includes('twitter.com') || url.includes('x.com');
+      
+      // ถ้าเป็น Social Media และ Title ดูไม่สื่อความหมาย -> ให้ใช้ Description (Caption) แทน
+      if (isSocial && meta.description && (!meta.title || meta.title === 'Facebook' || meta.title === 'Instagram' || meta.title.includes('Log into'))) {
+          finalTitle = meta.description.substring(0, 100) + "..."; // ตัดให้สั้นหน่อยจะได้ไม่ยาวเกิน
+      }
+
       return {
-        title: meta.title,
+        title: finalTitle,
         image: meta.image?.url,
-        // ลองดึงวันที่จากหลายๆ field ที่ API อาจจะส่งมา
-        date: meta.date || meta.published || meta.updated, 
+        date: meta.date || meta.published || meta.updated,
       };
     }
-  } catch (error) { 
-    console.error("Error fetching metadata:", error); 
-  }
+  } catch (error) { console.error("Error fetching metadata:", error); }
   return null;
 };
 
@@ -993,7 +999,7 @@ const formatForInput = (timestamp) => {
                                 <h3 className="flex items-center gap-2 text-slate-700 font-bold mb-4 pb-2 border-b border-slate-200">
                                     <Calendar className="w-4 h-4 text-blue-500"/> {day}
                                 </h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                                     {groupedData[week][day].map(link => (
                                         <div key={link.id} className="group bg-white rounded-xl overflow-hidden border border-slate-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
                                             <div className="aspect-video bg-slate-100 relative overflow-hidden">
