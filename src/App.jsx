@@ -266,15 +266,41 @@ const SearchModal = ({ isOpen, onClose, data, onNavigate }) => {
   );
 };
 
-const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บันทึก" }) => {
+const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บันทึก", availableTags = [] }) => {
   const [formData, setFormData] = useState({});
+  const [tagInput, setTagInput] = useState(""); 
+
   useEffect(() => {
     if (isOpen) {
       const initialData = {};
-      fields.forEach(f => initialData[f.key] = f.defaultValue !== undefined ? f.defaultValue : '');
+      fields.forEach(f => {
+        if (f.type === 'tags') {
+          initialData[f.key] = f.defaultValue || [];
+        } else {
+          initialData[f.key] = f.defaultValue !== undefined ? f.defaultValue : '';
+        }
+      });
       setFormData(initialData);
+      setTagInput("");
     }
   }, [isOpen, fields]);
+
+  // Helper หา Tag จาก Master List
+  const findTagInfo = (name) => availableTags.find(t => t.name === name) || { name, color: '#94a3b8' };
+
+  const handleAddTag = (key, val) => {
+    if (!val.trim()) return;
+    const currentTags = formData[key] || [];
+    if (!currentTags.includes(val.trim())) {
+      setFormData({ ...formData, [key]: [...currentTags, val.trim()] });
+    }
+    setTagInput("");
+  };
+
+  const handleRemoveTag = (key, tagToRemove) => {
+    const currentTags = formData[key] || [];
+    setFormData({ ...formData, [key]: currentTags.filter(t => t !== tagToRemove) });
+  };
 
   if (!isOpen) return null;
 
@@ -290,26 +316,42 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
                     {field.label}
                     {field.key === 'tag' && <Tag className="w-3 h-3 text-blue-500" />}
                 </label>
-                {field.type === 'select' ? (
+                {field.type === 'tags' ? (
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {(formData[field.key] || []).map((t, i) => {
+                         const info = findTagInfo(t);
+                         return (
+                            <span key={i} className="text-white text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1 shadow-sm" style={{ backgroundColor: info.color }}>
+                              #{t}
+                              <button onClick={() => handleRemoveTag(field.key, t)}><X className="w-3 h-3 hover:text-red-200"/></button>
+                            </span>
+                         );
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddTag(field.key, tagInput); } }} className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-500" placeholder="พิมพ์ Tag หรือเลือกด้านล่าง..." />
+                      <button onClick={() => handleAddTag(field.key, tagInput)} className="bg-slate-200 p-2 rounded-lg hover:bg-slate-300"><Plus className="w-4 h-4"/></button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                       {/* แสดงรายการ Tag จากระบบที่มีสี */}
+                       {availableTags.map(pt => (
+                         <button key={pt.name} onClick={() => handleAddTag(field.key, pt.name)} className="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-full text-slate-600 hover:brightness-95 transition flex items-center gap-1" style={{ borderLeft: `3px solid ${pt.color}` }}>
+                           + {pt.name}
+                         </button>
+                       ))}
+                       {availableTags.length === 0 && <span className="text-[10px] text-slate-400">ยังไม่มี Tag ในระบบ (กดจัดการ Tag เพื่อเพิ่ม)</span>}
+                    </div>
+                  </div>
+                ) : field.type === 'select' ? (
                    <div className="relative">
-                       <select 
-                          value={formData[field.key]} 
-                          onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                          className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-slate-50 focus:bg-white focus:border-blue-500 outline-none appearance-none font-medium text-slate-700 transition-all"
-                       >
+                       <select value={formData[field.key]} onChange={(e) => setFormData({...formData, [field.key]: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm bg-slate-50 focus:bg-white focus:border-blue-500 outline-none appearance-none font-medium text-slate-700 transition-all">
                           {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                        </select>
                        <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none"/>
                    </div>
                 ) : (
-                   <input 
-                      type={field.type || 'text'}
-                      value={formData[field.key]}
-                      onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                      className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-700 transition-all placeholder:text-slate-300"
-                      placeholder={field.placeholder || ''}
-                      list={field.type === 'datalist' ? `list-${field.key}` : undefined}
-                   />
+                   <input type={field.type || 'text'} value={formData[field.key]} onChange={(e) => setFormData({...formData, [field.key]: e.target.value})} className="w-full border-2 border-slate-200 rounded-xl p-3 text-sm focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-700 transition-all placeholder:text-slate-300" placeholder={field.placeholder || ''} list={field.type === 'datalist' ? `list-${field.key}` : undefined} />
                 )}
                 {field.type === 'datalist' && <datalist id={`list-${field.key}`}>{field.options.map(opt => <option key={opt} value={opt} />)}</datalist>}
                 {field.key === 'tag' && <div className="mt-3 flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100"><p className="text-[10px] text-slate-400 w-full mb-1">เลือก Tag ที่ใช้บ่อย:</p>{PRESET_TAGS.map(tag => <button key={tag} onClick={() => setFormData({...formData, tag: tag})} className={`text-[10px] px-2.5 py-1.5 rounded-full border font-medium transition-all active:scale-95 ${formData.tag === tag ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}>{tag}</button>)}</div>}
@@ -438,6 +480,114 @@ const ProfileModal = ({ isOpen, onClose, user, userProfile, onUpdate }) => {
   );
 };
 
+// --- TAG MANAGER COMPONENT (เพิ่มใหม่) ---
+const TagManagerModal = ({ isOpen, onClose, existingTags, onSave }) => {
+  // เก็บ State เป็น Array ของ Object { name: '..', color: '..' }
+  const [tags, setTags] = useState([]);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#3b82f6"); // Default Blue
+
+  useEffect(() => {
+    if (isOpen) {
+        // ถ้าไม่มีข้อมูลเก่า ให้ใช้ค่าตั้งต้น
+        setTags(existingTags && existingTags.length > 0 ? existingTags : [
+            { name: "Breaking News", color: "#ef4444" }, // Red
+            { name: "PR News", color: "#3b82f6" },       // Blue
+            { name: "Event", color: "#10b981" },         // Emerald
+            { name: "Official", color: "#6366f1" }       // Indigo
+        ]);
+    }
+  }, [isOpen, existingTags]);
+
+  const handleAdd = () => {
+    if (!newTagName.trim()) return;
+    // เช็คซ้ำ
+    if (tags.some(t => t.name.toLowerCase() === newTagName.trim().toLowerCase())) {
+        alert("ชื่อ Tag นี้มีอยู่แล้ว");
+        return;
+    }
+    setTags([...tags, { name: newTagName.trim(), color: newTagColor }]);
+    setNewTagName("");
+  };
+
+  const handleDelete = (indexToDelete) => {
+    if(confirm("ต้องการลบ Tag นี้ออกจากระบบ? (Tag ในข่าวเก่าจะไม่หายไป)")) {
+        setTags(tags.filter((_, i) => i !== indexToDelete));
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1300] p-4 animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
+        <h3 className="text-xl font-bold text-slate-800 mb-1">จัดการแท็ก (Tag Manager)</h3>
+        <p className="text-xs text-slate-500 mb-6">ตั้งค่าชื่อและสีของแท็กเพื่อใช้ร่วมกันทั้งทีม</p>
+
+        {/* ส่วนเพิ่ม Tag ใหม่ */}
+        <div className="flex gap-2 mb-6 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <input 
+                type="color" 
+                value={newTagColor} 
+                onChange={e => setNewTagColor(e.target.value)} 
+                className="w-10 h-10 rounded cursor-pointer border-none bg-transparent"
+                title="เลือกสี"
+            />
+            <input 
+                type="text" 
+                value={newTagName} 
+                onChange={e => setNewTagName(e.target.value)}
+                placeholder="ชื่อ Tag ใหม่..." 
+                className="flex-1 bg-white border border-slate-300 rounded-lg px-3 text-sm outline-none focus:border-blue-500"
+                onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            />
+            <button onClick={handleAdd} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 font-bold text-xs flex items-center gap-1">
+                <Plus className="w-4 h-4" /> เพิ่ม
+            </button>
+        </div>
+
+        {/* รายการ Tag ปัจจุบัน */}
+        <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar pr-1">
+            {tags.map((tag, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 border rounded-lg hover:bg-slate-50 transition">
+                    <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full border shadow-sm" style={{ backgroundColor: tag.color }}></div>
+                        <span className="font-bold text-sm text-slate-700">#{tag.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {/* ช่องเปลี่ยนสี */}
+                        <div className="relative w-6 h-6">
+                            <input 
+                                type="color" 
+                                value={tag.color} 
+                                onChange={(e) => {
+                                    const newTags = [...tags];
+                                    newTags[idx].color = e.target.value;
+                                    setTags(newTags);
+                                }} 
+                                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10" 
+                                title="เปลี่ยนสี"
+                            />
+                            <div className="w-full h-full rounded-full border" style={{backgroundColor: tag.color}}></div>
+                        </div>
+                        <button onClick={() => handleDelete(idx)} className="text-slate-300 hover:text-red-500 ml-2"><Trash2 className="w-4 h-4"/></button>
+                    </div>
+                </div>
+            ))}
+            {tags.length === 0 && <p className="text-center text-slate-400 text-sm py-4">ยังไม่มี Tag ในระบบ</p>}
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+            <button onClick={() => onSave(tags)} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-black shadow-lg flex items-center gap-2">
+                <Save className="w-4 h-4"/> บันทึกการเปลี่ยนแปลง
+            </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function TeamTaweeApp() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -463,7 +613,34 @@ export default function TeamTaweeApp() {
 
   const [newsStartDate, setNewsStartDate] = useState('');
   const [newsEndDate, setNewsEndDate] = useState('');
-  const [newsFilterTag, setNewsFilterTag] = useState('All');
+  const [newsFilterTag, setNewsFilterTag] = useState('All'); 
+  const [systemTags, setSystemTags] = useState([]); // เก็บ Master Tag List (Name + Color)
+  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false); // เปิดปิด Modal Manager
+
+  // --- เพิ่ม useEffect เพื่อโหลด System Tags ---
+  useEffect(() => {
+    const unsubTags = onSnapshot(doc(db, "settings", "news_config"), (doc) => {
+        if (doc.exists()) {
+            setSystemTags(doc.data().tags || []);
+        } else {
+            // ถ้ายังไม่มี ให้สร้าง Default
+            setSystemTags([]); 
+        }
+    });
+    return () => unsubTags();
+  }, []);
+
+  // --- เพิ่มฟังก์ชันบันทึก Tags ---
+  const saveSystemTags = async (newTags) => {
+    setIsGlobalLoading(true);
+    try {
+        await setDoc(doc(db, "settings", "news_config"), { tags: newTags }, { merge: true });
+        setIsTagManagerOpen(false);
+    } catch (e) {
+        alert("บันทึกไม่สำเร็จ: " + e.message);
+    }
+    setIsGlobalLoading(false);
+  };
   
   const [editingTask, setEditingTask] = useState(null);
   const [urgentModal, setUrgentModal] = useState(null); 
@@ -522,7 +699,12 @@ export default function TeamTaweeApp() {
 
   // --- ACTIONS ---
   const handleUpdateProfile = async (n, p, ph) => { if(!currentUser)return; setIsGlobalLoading(true); try{ await updateProfile(currentUser, {displayName:n, photoURL:p}); await setDoc(doc(db,"user_profiles",currentUser.uid), {phone:ph}, {merge:true}); setCurrentUser({...currentUser, displayName:n, photoURL:p}); setUserProfile(prev=>({...prev, phone:ph})); }catch(e){alert(e.message);} setIsGlobalLoading(false); };
-  const openFormModal = (title, fields, onSave) => setFormModalConfig({ isOpen:true, title, fields, onSave: async(d)=>{ setIsGlobalLoading(true); try{await onSave(d); setFormModalConfig(prev=>({...prev, isOpen:false}));}catch(e){alert(e.message);} setIsGlobalLoading(false); } });
+  // แก้ไข openFormModal ให้รับ additionalProps (Argument สุดท้าย)
+  const openFormModal = (title, fields, onSave, submitText, additionalProps = {}) => 
+      setFormModalConfig({ isOpen:true, title, fields, onSave: async(d)=>{ setIsGlobalLoading(true); try{await onSave(d); setFormModalConfig(prev=>({...prev, isOpen:false}));}catch(e){alert(e.message);} setIsGlobalLoading(false); }, submitText, ...additionalProps });
+  
+  // จากนั้นเรียกใช้แบบนี้ใน addPublishedLink / editPublishedLink:
+  // openFormModal("...", [...], async(d)=>{...}, "บันทึก", { availableTags: systemTags });
 
   const saveTaskChange = async (task) => { if(!task.id)return; setIsGlobalLoading(true); try{ await updateDoc(doc(db,"tasks",task.id), {title:task.title||"", status:task.status||"To Do", tag:task.tag||"", role:task.role||"", link:task.link||"", deadline:task.deadline||"", updatedBy:currentUser.displayName, updatedAt:new Date().toISOString()}); logActivity("Edit Task", task.title); setEditingTask(null); }catch(e){alert(e.message);} setIsGlobalLoading(false); };
   const saveUrgentCase = async (task) => { if(!task.id)return; setIsGlobalLoading(true); try{ await updateDoc(doc(db,"tasks",task.id), {title:task.title||"", status:task.status||"To Do", link:task.link||"", sop:task.sop||[], updatedBy:currentUser.displayName, updatedAt:new Date().toISOString()}); logActivity("Update Urgent", task.title); setUrgentModal(null); }catch(e){alert(e.message);} setIsGlobalLoading(false); };
@@ -542,54 +724,33 @@ const formatForInput = (timestamp) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// ฟังก์ชันเพิ่มข่าว (New Flow: Prompt URL -> Fetch -> Open Modal)
+// --- แก้ไข addPublishedLink (เพิ่มบรรทัด availableTags: systemTags) ---
   const addPublishedLink = async () => {
-    // 1. ถาม URL
     const urlInput = prompt("กรุณาวาง Link ข่าวที่ต้องการเพิ่ม:");
     if (!urlInput) return;
-
-    // 2. Loading
     setIsGlobalLoading(true);
-
-    // 3. Fetch Data
     let meta = { title: "", image: "", date: "" };
-    try {
-        meta = await fetchLinkMetadata(urlInput) || meta;
-    } catch (e) {
-        alert("ดึงข้อมูลอัตโนมัติไม่สำเร็จ แต่คุณยังกรอกเองได้ครับ");
-    }
-
+    try { meta = await fetchLinkMetadata(urlInput) || meta; } catch (e) { alert("ดึงข้อมูลอัตโนมัติไม่สำเร็จ แต่คุณยังกรอกเองได้ครับ"); }
     setIsGlobalLoading(false);
 
-    // 4. เตรียมข้อมูล
-    const defaults = {
-        url: urlInput,
-        title: meta.title || "",
-        imageUrl: meta.image || "",
-        platform: 'Website',
-        // 🟢 จุดสำคัญ: ใช้ formatForInput จัดการให้หมด ไม่ต้องต่อ string เองแล้ว
-        customDate: formatForInput(meta.date || new Date())
-    };
-
-    // 5. เปิด Modal
+    const defaults = { url: urlInput, title: meta.title || "", imageUrl: meta.image || "", platform: 'Website', customDate: formatForInput(meta.date || new Date()) };
+    
+    // 🟢 ใส่ availableTags: systemTags ลงไปใน config
     openFormModal("เพิ่มข่าวประชาสัมพันธ์", [
       {key:'url', label:'URL ข่าว', defaultValue: defaults.url},
       {key:'title', label:'หัวข้อข่าว', defaultValue: defaults.title},
       {key:'imageUrl', label:'Link รูปภาพ', defaultValue: defaults.imageUrl}, 
       {key:'customDate', label:'วันที่ลงข่าว', type:'datetime-local', defaultValue: defaults.customDate},
-      {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: defaults.platform}
+      {key:'platform', label:'Platform', type:'select', options: ['Website', 'Facebook', 'YouTube', 'TikTok', 'Twitter'], defaultValue: defaults.platform},
+      {key:'tags', label:'Tags (เพิ่ม/ลบ)', type:'tags', defaultValue: []} 
     ], async(d)=>{ 
       const finalDate = d.customDate ? new Date(d.customDate) : new Date();
-      await addDoc(collection(db,"published_links"), {
-        title: d.title.trim() || "No Title",
-        url: d.url || "",
-        imageUrl: d.imageUrl || "", 
-        platform: d.platform || "Website",
-        createdBy:currentUser.displayName, 
-        createdAt: finalDate 
-      }); 
+      await addDoc(collection(db,"published_links"), { title: d.title.trim() || "No Title", url: d.url || "", imageUrl: d.imageUrl || "", platform: d.platform || "Website", tags: d.tags || [], createdBy:currentUser.displayName, createdAt: finalDate }); 
       logActivity("Add Link", d.title); 
     }, "บันทึกข้อมูล");
+    
+    // 🟢 อัปเดต FormModal Config ให้รับ availableTags
+    setFormModalConfig(prev => ({ ...prev, availableTags: systemTags })); 
   };
   
   // --- วางต่อจาก addPublishedLink เดิม ---
@@ -999,14 +1160,16 @@ const formatForInput = (timestamp) => {
   );
 
   const renderNewsroom = () => {
-    // --- 1. เตรียมรายชื่อ Tag ทั้งหมดที่มีในระบบ ---
-    // ดึง Tags จากทุก Link มารวมกัน -> ตัดตัวซ้ำ -> ใส่ 'All' ไว้ตัวแรก
-    const allNewsTags = ['All', ...new Set(publishedLinks.flatMap(link => link.tags || []))].filter(Boolean);
+    // รวม Tag ทั้งหมดที่มีในระบบ (จาก Config + จากข่าวจริง) มาแสดงใน Filter
+    const usedTags = new Set(publishedLinks.flatMap(link => link.tags || []));
+    systemTags.forEach(t => usedTags.add(t.name));
+    const allNewsTags = ['All', ...Array.from(usedTags)].filter(Boolean);
 
-    // --- 2. Filter ข้อมูล (Date + Tag) ---
+    // Map สี Tag เพื่อใช้แสดงผล
+    const tagColorMap = systemTags.reduce((acc, t) => ({ ...acc, [t.name]: t.color }), {});
+    const getTagColor = (tagName) => tagColorMap[tagName] || '#64748b'; // Default gray if no color
+
     let filteredLinks = publishedLinks;
-
-    // 2.1 Filter ตามวันที่ (Logic เดิม)
     if (newsStartDate && newsEndDate) {
       const start = new Date(newsStartDate).setHours(0,0,0,0);
       const end = new Date(newsEndDate).setHours(23,59,59,999);
@@ -1018,21 +1181,17 @@ const formatForInput = (timestamp) => {
       });
     }
 
-    // 2.2 🟢 Filter ตาม Tag (Logic ใหม่)
     if (newsFilterTag !== 'All') {
         filteredLinks = filteredLinks.filter(link => (link.tags || []).includes(newsFilterTag));
     }
 
-    // --- 3. Group ข้อมูลตาม Week -> Day (Logic เดิม) ---
     const groupedData = {};
     filteredLinks.forEach(link => {
         if (!link.createdAt) return;
         const dateObj = link.createdAt.toDate ? link.createdAt.toDate() : new Date(link.createdAt);
         if (isNaN(dateObj.getTime())) return;
-
         const weekKey = `${getWeekNumber(dateObj)} (${dateObj.getFullYear()})`;
         const dayKey = dateObj.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
-
         if (!groupedData[weekKey]) groupedData[weekKey] = {};
         if (!groupedData[weekKey][dayKey]) groupedData[weekKey][dayKey] = [];
         groupedData[weekKey][dayKey].push(link);
@@ -1040,120 +1199,62 @@ const formatForInput = (timestamp) => {
 
     return (
       <div className="space-y-6 animate-fadeIn pb-20">
-        <PageHeader title="ห้องข่าว & สื่อประชาสัมพันธ์" subtitle="Newsroom & Public Relations" 
-          action={
+        <PageHeader title="ห้องข่าว & สื่อประชาสัมพันธ์" subtitle="Newsroom & Public Relations" action={
             <div className="flex flex-wrap items-end gap-3 bg-white p-2 rounded-xl border shadow-sm">
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-slate-400 font-bold ml-1">ตั้งแต่วันที่</span>
-                    <input type="date" value={newsStartDate} onChange={e=>setNewsStartDate(e.target.value)} className="text-xs border rounded-lg p-1.5 outline-none focus:border-blue-500 text-slate-600"/>
-                </div>
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-slate-400 font-bold ml-1">ถึงวันที่</span>
-                    <input type="date" value={newsEndDate} onChange={e=>setNewsEndDate(e.target.value)} className="text-xs border rounded-lg p-1.5 outline-none focus:border-blue-500 text-slate-600"/>
-                </div>
-                <button onClick={() => {setNewsStartDate(''); setNewsEndDate(''); setNewsFilterTag('All');}} className="p-2 text-slate-400 hover:text-red-500" title="ล้างค่า"><RefreshCw className="w-4 h-4"/></button>
-                <div className="w-px h-8 bg-slate-200 mx-1"></div>
-                <button onClick={() => addPublishedLink()} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md flex items-center gap-2 h-fit mb-0.5"><Plus className="w-4 h-4" /> เพิ่มข่าว</button>
+                 <div className="flex flex-col"><span className="text-[10px] text-slate-400 font-bold ml-1">ตั้งแต่วันที่</span><input type="date" value={newsStartDate} onChange={e=>setNewsStartDate(e.target.value)} className="text-xs border rounded-lg p-1.5 outline-none focus:border-blue-500 text-slate-600"/></div>
+                 <div className="flex flex-col"><span className="text-[10px] text-slate-400 font-bold ml-1">ถึงวันที่</span><input type="date" value={newsEndDate} onChange={e=>setNewsEndDate(e.target.value)} className="text-xs border rounded-lg p-1.5 outline-none focus:border-blue-500 text-slate-600"/></div>
+                 <button onClick={() => {setNewsStartDate(''); setNewsEndDate(''); setNewsFilterTag('All');}} className="p-2 text-slate-400 hover:text-red-500" title="ล้างค่า"><RefreshCw className="w-4 h-4"/></button>
+                 <div className="w-px h-8 bg-slate-200 mx-1"></div>
+                 {/* ปุ่มจัดการ Tag */}
+                 <button onClick={() => setIsTagManagerOpen(true)} className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-black shadow-md flex items-center gap-2 h-fit mb-0.5"><Tag className="w-3.5 h-3.5" /> จัดการ Tag</button>
+                 <button onClick={() => addPublishedLink()} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md flex items-center gap-2 h-fit mb-0.5"><Plus className="w-4 h-4" /> เพิ่มข่าว</button>
             </div>
-          } 
-        />
+        } />
 
-        {/* 🟢 ส่วนแสดงแถบเลือก Tags (Filter Bar) */}
+        {/* Filter Bar */}
         <div className="w-full overflow-x-auto pb-2 custom-scrollbar -mt-2">
             <div className="flex items-center gap-2 min-w-max px-1">
                 <Tag className="w-4 h-4 text-slate-400 mr-2" />
-                {allNewsTags.map(tag => (
-                    <button 
-                        key={tag}
-                        onClick={() => setNewsFilterTag(tag)}
-                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 border ${
-                            newsFilterTag === tag 
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' 
-                            : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600'
-                        }`}
-                    >
-                        {tag === 'All' ? 'ทั้งหมด' : `#${tag}`}
-                    </button>
-                ))}
+                {allNewsTags.map(tag => {
+                    const color = getTagColor(tag);
+                    const isActive = newsFilterTag === tag;
+                    return (
+                        <button key={tag} onClick={() => setNewsFilterTag(tag)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 border flex items-center gap-1.5 ${isActive ? 'text-white border-transparent shadow-md scale-105' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`} style={isActive ? { backgroundColor: tag === 'All' ? '#2563eb' : color } : {}}>
+                            {tag !== 'All' && <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white' : ''}`} style={!isActive ? { backgroundColor: color } : {}}></div>}
+                            {tag === 'All' ? 'ทั้งหมด' : tag}
+                        </button>
+                    );
+                })}
             </div>
         </div>
 
-        {/* --- ส่วนแสดงผล Card ข่าว (เหมือนเดิม) --- */}
         {Object.keys(groupedData).length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-400">
-                <Globe className="w-12 h-12 mb-3 opacity-20"/>
-                <p>ไม่พบข้อมูลข่าว {newsFilterTag !== 'All' ? `ในหมวด #${newsFilterTag}` : ''}</p>
-                <button onClick={() => addPublishedLink()} className="mt-4 text-blue-600 font-bold hover:underline text-sm">+ เพิ่มข่าวแรกของคุณ</button>
-            </div>
+            <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-400"><Globe className="w-12 h-12 mb-3 opacity-20"/><p>ไม่พบข้อมูลข่าว</p></div>
         ) : (
             Object.keys(groupedData).sort((a,b) => b.localeCompare(a)).map(week => ( 
                 <div key={week} className="bg-white/50 rounded-3xl p-6 border border-slate-200/60 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 left-0 bg-blue-600 text-white text-xs font-black px-4 py-1.5 rounded-br-2xl shadow-sm z-10">
-                        {week}
-                    </div>
-                    
+                    <div className="absolute top-0 left-0 bg-blue-600 text-white text-xs font-black px-4 py-1.5 rounded-br-2xl shadow-sm z-10">{week}</div>
                     <div className="space-y-8 mt-4">
                         {Object.keys(groupedData[week]).sort((a,b) => {
-                            const getLinkDate = (dayKey) => {
-                                const link = groupedData[week][dayKey][0];
-                                return link.createdAt.toDate ? link.createdAt.toDate().getTime() : new Date(link.createdAt).getTime();
-                            };
-                            return getLinkDate(b) - getLinkDate(a);
+                             const getLinkDate = (dayKey) => { const link = groupedData[week][dayKey][0]; return link.createdAt.toDate ? link.createdAt.toDate().getTime() : new Date(link.createdAt).getTime(); };
+                             return getLinkDate(b) - getLinkDate(a);
                         }).map(day => (
                             <div key={day}>
-                                <h3 className="flex items-center gap-2 text-slate-700 font-bold mb-4 pb-2 border-b border-slate-200">
-                                    <Calendar className="w-4 h-4 text-blue-500"/> {day}
-                                </h3>
+                                <h3 className="flex items-center gap-2 text-slate-700 font-bold mb-4 pb-2 border-b border-slate-200"><Calendar className="w-4 h-4 text-blue-500"/> {day}</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                                     {groupedData[week][day].map(link => (
                                         <div key={link.id} className="group bg-white rounded-xl overflow-hidden border border-slate-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
                                             <div className="aspect-video bg-slate-100 relative overflow-hidden group-hover:shadow-inner">
-                                                {link.imageUrl ? (
-                                                    <img 
-                                                        src={`https://wsrv.nl/?url=${encodeURIComponent(link.imageUrl)}&w=400&q=75`} 
-                                                        alt={link.title} 
-                                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                                                        onError={(e) => { e.target.onerror = null; if (e.target.src.includes('wsrv.nl')) { e.target.src = link.imageUrl; } else { e.target.src = "https://placehold.co/600x400?text=No+Image"; } }}
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
-                                                        <FileText className="w-10 h-10 mb-1"/>
-                                                        <span className="text-[10px]">No Image</span>
-                                                    </div>
-                                                )}
-                                                
-                                                {/* แสดง Tags บนรูป */}
-                                                <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10 pr-2">
-                                                    {(link.tags || []).map((tag, idx) => (
-                                                        <span key={idx} className="bg-black/60 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-sm">
-                                                            #{tag}
-                                                        </span>
-                                                    ))}
-                                                </div>
-
-                                                <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                                    <ExternalLink className="w-8 h-8 text-white drop-shadow-md"/>
-                                                </a>
+                                                {link.imageUrl ? <img src={`https://wsrv.nl/?url=${encodeURIComponent(link.imageUrl)}&w=400&q=75`} alt={link.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" onError={(e) => { e.target.onerror = null; if (e.target.src.includes('wsrv.nl')) { e.target.src = link.imageUrl; } else { e.target.src = "https://placehold.co/600x400?text=No+Image"; } }} /> : <div className="w-full h-full flex flex-col items-center justify-center text-slate-300"><FileText className="w-10 h-10 mb-1"/><span className="text-[10px]">No Image</span></div>}
+                                                {/* 🟢 แสดง Tag พร้อมสี */}
+                                                <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10 pr-2">{(link.tags || []).map((tag, idx) => <span key={idx} className="backdrop-blur-md text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-sm" style={{ backgroundColor: `${getTagColor(tag)}CC` }}>#{tag}</span>)}</div>
+                                                <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100"><ExternalLink className="w-8 h-8 text-white drop-shadow-md"/></a>
                                             </div>
-                                            
                                             <div className="p-4 flex flex-col flex-1">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span>
-                                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                                        <button onClick={()=>editPublishedLink(link)} className="text-slate-300 hover:text-blue-500" title="แก้ไข"><Edit2 className="w-3.5 h-3.5"/></button>
-                                                        <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500" title="ลบ"><Trash2 className="w-3.5 h-3.5"/></button>
-                                                    </div>
-                                                </div>
-                                                <a href={link.url} target="_blank" rel="noreferrer" className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 hover:text-blue-600 transition mb-2">
-                                                    {link.title}
-                                                </a>
-                                                <div className="text-[10px] text-slate-400 font-medium mb-3 flex items-center gap-1">
-                                                    <LinkIcon className="w-3 h-3" />
-                                                    {getDomain(link.url)}
-                                                </div>
-                                                <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400">
-                                                    <span>{formatDate(link.createdAt)}</span>
-                                                </div>
+                                                <div className="flex justify-between items-start mb-2"><span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span><div className="flex gap-2 opacity-0 group-hover:opacity-100 transition"><button onClick={()=>{/*เรียก edit พร้อม availableTags*/}} className="text-slate-300 hover:text-blue-500"><Edit2 className="w-3.5 h-3.5"/></button><button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button></div></div>
+                                                <a href={link.url} target="_blank" rel="noreferrer" className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 hover:text-blue-600 transition mb-2">{link.title}</a>
+                                                <div className="text-[10px] text-slate-400 font-medium mb-3 flex items-center gap-1"><LinkIcon className="w-3 h-3" />{getDomain(link.url)}</div>
+                                                <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400"><span>{formatDate(link.createdAt)}</span></div>
                                             </div>
                                         </div>
                                     ))}
@@ -1164,6 +1265,9 @@ const formatForInput = (timestamp) => {
                 </div>
             ))
         )}
+        
+        {/* เรียก Modal Tag Manager */}
+        <TagManagerModal isOpen={isTagManagerOpen} onClose={()=>setIsTagManagerOpen(false)} existingTags={systemTags} onSave={saveSystemTags} />
       </div>
     );
   };
