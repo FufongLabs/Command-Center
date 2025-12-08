@@ -8,13 +8,14 @@ import {
   onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, updateProfile 
 } from 'firebase/auth';
 
-// 🟢 เพิ่ม User และไอคอนที่ขาดไปตรงนี้ให้ครบแล้วครับ (แก้ User is not defined)
+// 🟢 Import ครบถ้วน (รวมถึง ArrowUp, ArrowDown สำหรับเลื่อน Tag และ User Icon)
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, FileText, Plus, 
   Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, 
   Save, LogOut, Lock, AlertTriangle, Globe, Loader2, Tag, Search, Shield, 
-  FileClock, ArrowDownWideNarrow, User, Phone, Mail, MessageCircle, Smartphone
+  FileClock, ArrowDownWideNarrow, User, Phone, Mail, MessageCircle, Smartphone,
+  ArrowUp, ArrowDown
 } from 'lucide-react';
 
 // --- GLOBAL CONSTANTS ---
@@ -92,30 +93,46 @@ const formatForInput = (val) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+// 🤖 ฟังก์ชัน AI Hybrid (ดึงเองก่อน ถ้าไม่ได้ให้ AI ช่วย)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
+
   let rawHtml = null;
+
+  // 1. ลองใช้ Proxy (AllOrigins)
   try {
     const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
     if (!proxyRes.ok) throw new Error("Network error");
     const proxyData = await proxyRes.json();
     if (proxyData.contents) rawHtml = proxyData.contents;
-  } catch (e) { console.warn("AllOrigins failed, trying backup..."); }
+  } catch (e) {
+    console.warn("AllOrigins failed, trying backup...");
+  }
 
+  // 2. (Backup) ใช้ CORSProxy.io
   if (!rawHtml) {
     try {
       const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
       if (res.ok) rawHtml = await res.text();
-    } catch (e) { console.warn("Backup proxy failed too."); }
+    } catch (e) {
+      console.warn("Backup proxy failed too.");
+    }
   }
 
   if (!rawHtml) return null;
 
+  // --- ส่วนแกะข้อมูล (Native DOM) ---
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, "text/html");
   const getMeta = (prop) => doc.querySelector(`meta[property="${prop}"]`)?.content || doc.querySelector(`meta[name="${prop}"]`)?.content;
 
-  let foundDate = getMeta("article:published_time") || getMeta("date") || getMeta("pubdate") || doc.querySelector("time")?.getAttribute("datetime") || "";
+  // พยายามหาวันที่ด้วยตัวเองก่อน
+  let foundDate = 
+    getMeta("article:published_time") || 
+    getMeta("date") || 
+    getMeta("pubdate") ||
+    doc.querySelector("time")?.getAttribute("datetime") || 
+    "";
 
   if (!foundDate) {
       try {
@@ -133,6 +150,44 @@ const fetchLinkMetadata = async (url) => {
     image: getMeta("og:image") || "",
     date: foundDate
   };
+
+  // --- 🤖 ส่วน AI ช่วย (Gemini Fallback) ---
+  // ทำงานเฉพาะเมื่อข้อมูลไม่ครบ เพื่อความแม่นยำสูงสุด
+  if (!result.title || !result.date) {
+      const shortHtml = rawHtml.substring(0, 30000); 
+      try {
+        const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
+        
+        const prompt = `Analyze this HTML and extract metadata in JSON format ONLY.
+        1. Title: If empty "${result.title}", find the best article headline.
+        2. Image: If empty "${result.image}", find the main article image URL.
+        3. Date: If empty "${result.date}", find publication date (ISO format preferred).
+        
+        Return JSON structure: {"title": "...", "image": "...", "date": "..."}
+        HTML Snippet: ${shortHtml}`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        if (response.ok) {
+            const aiData = await response.json();
+            const textResponse = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textResponse) {
+              const cleanJson = textResponse.replace(/```json|```/g, '').trim();
+              const aiResult = JSON.parse(cleanJson);
+              if (!result.title) result.title = aiResult.title;
+              if (!result.image) result.image = aiResult.image;
+              if (!result.date) result.date = aiResult.date; 
+            }
+        }
+      } catch (e) {
+        console.warn("AI Help failed", e);
+      }
+  }
+
   return result;
 };
 
@@ -311,41 +366,66 @@ const TagManagerModal = ({ isOpen, onClose, existingTags, onSave }) => {
     setNewTagName("");
   };
 
-  const handleDelete = (indexToDelete) => {
-    if(confirm("ต้องการลบ Tag นี้ออกจากระบบ?")) {
-        setTags(tags.filter((_, i) => i !== indexToDelete));
+  const handleDelete = (index) => {
+    if(confirm("ต้องการลบ Tag นี้?")) {
+        setTags(tags.filter((_, i) => i !== index));
     }
+  };
+
+  const moveTag = (index, direction) => {
+    const newTags = [...tags];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= newTags.length) return;
+    const temp = newTags[index];
+    newTags[index] = newTags[targetIndex];
+    newTags[targetIndex] = temp;
+    setTags(newTags);
+  };
+
+  const updateTag = (index, field, value) => {
+    const newTags = [...tags];
+    newTags[index] = { ...newTags[index], [field]: value };
+    setTags(newTags);
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1300] p-4 animate-fadeIn">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
-        <h3 className="text-xl font-bold text-slate-800 mb-1">จัดการแท็ก (Tag Manager)</h3>
-        <p className="text-xs text-slate-500 mb-6">ตั้งค่าชื่อและสีของแท็กเพื่อใช้ร่วมกันทั้งทีม</p>
-        <div className="flex gap-2 mb-6 p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <input type="color" value={newTagColor} onChange={e => setNewTagColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border-none bg-transparent"/>
-            <input type="text" value={newTagName} onChange={e => setNewTagName(e.target.value)} placeholder="ชื่อ Tag ใหม่..." className="flex-1 bg-white border border-slate-300 rounded-lg px-3 text-sm outline-none focus:border-blue-500" onKeyDown={(e) => e.key === 'Enter' && handleAdd()}/>
-            <button onClick={handleAdd} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 font-bold text-xs flex items-center gap-1"><Plus className="w-4 h-4" /> เพิ่ม</button>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative flex flex-col max-h-[85vh]">
+        <div className="flex justify-between items-start mb-1">
+            <h3 className="text-xl font-bold text-slate-800">จัดการแท็ก (Tag Manager)</h3>
+            <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400"/></button>
         </div>
-        <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar pr-1">
+        <p className="text-xs text-slate-500 mb-6">เพิ่ม แก้ไข และจัดลำดับความสำคัญของแท็ก</p>
+
+        <div className="flex gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200 shadow-sm flex-shrink-0">
+            <div className="relative w-10 h-10 flex-shrink-0">
+                <input type="color" value={newTagColor} onChange={e => setNewTagColor(e.target.value)} className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"/>
+                <div className="w-full h-full rounded-lg border-2 border-white shadow-sm" style={{backgroundColor: newTagColor}}></div>
+            </div>
+            <input type="text" value={newTagName} onChange={e => setNewTagName(e.target.value)} placeholder="ชื่อ Tag ใหม่..." className="flex-1 bg-white border border-slate-300 rounded-lg px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" onKeyDown={(e) => e.key === 'Enter' && handleAdd()}/>
+            <button onClick={handleAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-bold text-xs flex items-center gap-1 shadow-blue-200 shadow-lg active:scale-95 transition-all"><Plus className="w-4 h-4" /> เพิ่ม</button>
+        </div>
+
+        <div className="space-y-2 overflow-y-auto custom-scrollbar pr-1 flex-1">
             {tags.map((tag, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2 border rounded-lg hover:bg-slate-50 transition">
-                    <div className="flex items-center gap-3"><div className="w-6 h-6 rounded-full border shadow-sm" style={{ backgroundColor: tag.color }}></div><span className="font-bold text-sm text-slate-700">#{tag.name}</span></div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative w-6 h-6">
-                            <input type="color" value={tag.color} onChange={(e) => { const newTags = [...tags]; newTags[idx].color = e.target.value; setTags(newTags); }} className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10" />
-                            <div className="w-full h-full rounded-full border" style={{backgroundColor: tag.color}}></div>
-                        </div>
-                        <button onClick={() => handleDelete(idx)} className="text-slate-300 hover:text-red-500 ml-2"><Trash2 className="w-4 h-4"/></button>
+                <div key={idx} className="flex items-center gap-3 p-2 border border-slate-100 rounded-xl bg-white hover:border-blue-200 hover:shadow-sm transition group">
+                    <div className="flex flex-col gap-0.5">
+                        <button onClick={() => moveTag(idx, -1)} disabled={idx === 0} className={`p-0.5 rounded hover:bg-slate-100 ${idx === 0 ? 'opacity-20 cursor-not-allowed' : 'text-slate-400 hover:text-blue-600'}`}><ArrowUp className="w-3 h-3" /></button>
+                        <button onClick={() => moveTag(idx, 1)} disabled={idx === tags.length - 1} className={`p-0.5 rounded hover:bg-slate-100 ${idx === tags.length - 1 ? 'opacity-20 cursor-not-allowed' : 'text-slate-400 hover:text-blue-600'}`}><ArrowDown className="w-3 h-3" /></button>
                     </div>
+                    <div className="relative w-8 h-8 flex-shrink-0 group/color cursor-pointer">
+                        <input type="color" value={tag.color} onChange={(e) => updateTag(idx, 'color', e.target.value)} className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10" title="คลิกเพื่อเปลี่ยนสี"/>
+                        <div className="w-full h-full rounded-full border shadow-sm transition-transform group-hover/color:scale-110" style={{backgroundColor: tag.color}}></div>
+                    </div>
+                    <input type="text" value={tag.name} onChange={(e) => updateTag(idx, 'name', e.target.value)} className="flex-1 text-sm font-bold text-slate-700 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-500 outline-none px-1 py-0.5 transition-colors"/>
+                    <button onClick={() => handleDelete(idx)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4"/></button>
                 </div>
             ))}
         </div>
-        <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
-            <button onClick={() => onSave(tags)} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-black shadow-lg flex items-center gap-2"><Save className="w-4 h-4"/> บันทึกการเปลี่ยนแปลง</button>
+        <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end bg-white">
+            <button onClick={() => onSave(tags)} className="w-full sm:w-auto bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95 transition-all"><Save className="w-4 h-4"/> บันทึกการเปลี่ยนแปลง</button>
         </div>
       </div>
     </div>
@@ -750,14 +830,23 @@ export default function TeamTaweeApp() {
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                                     {groupedData[week][day].map(link => (
                                         <div key={link.id} className="group bg-white rounded-xl overflow-hidden border border-slate-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
+                                            {/* 🟢 ส่วนแสดงผลรูปภาพ (ย้าย Tag ออกแล้ว) */}
                                             <div className="aspect-video bg-slate-100 relative overflow-hidden group-hover:shadow-inner">
                                                 {link.imageUrl ? <img src={`https://wsrv.nl/?url=${encodeURIComponent(link.imageUrl)}&w=400&q=75`} alt={link.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" onError={(e) => { e.target.onerror = null; if (e.target.src.includes('wsrv.nl')) { e.target.src = link.imageUrl; } else { e.target.src = "https://placehold.co/600x400?text=No+Image"; } }} /> : <div className="w-full h-full flex flex-col items-center justify-center text-slate-300"><FileText className="w-10 h-10 mb-1"/><span className="text-[10px]">No Image</span></div>}
-                                                <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10 pr-2">{(link.tags || []).map((tag, idx) => <span key={idx} className="backdrop-blur-md text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-sm" style={{ backgroundColor: `${getTagColor(tag)}CC` }}>#{tag}</span>)}</div>
                                                 <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100"><ExternalLink className="w-8 h-8 text-white drop-shadow-md"/></a>
                                             </div>
+                                            
                                             <div className="p-4 flex flex-col flex-1">
+                                                {/* 🟢 ส่วนแสดง Tag ใหม่ (ย้ายมาไว้ใต้ภาพ) */}
+                                                <div className="flex flex-wrap gap-1 mb-3">
+                                                    {(link.tags || []).map((tag, idx) => (
+                                                        <span key={idx} className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shadow-sm" style={{ backgroundColor: getTagColor(tag) }}>
+                                                            #{tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+
                                                 <div className="flex justify-between items-start mb-2"><span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span><div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                                {/* 🟢 แก้ไขปุ่ม Edit ให้ทำงานได้จริง (เรียกฟังก์ชัน editPublishedLink) */}
                                                 <button onClick={()=>editPublishedLink(link)} className="text-slate-300 hover:text-blue-500"><Edit2 className="w-3.5 h-3.5"/></button>
                                                 <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button></div></div>
                                                 <a href={link.url} target="_blank" rel="noreferrer" className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 hover:text-blue-600 transition mb-2">{link.title}</a>
