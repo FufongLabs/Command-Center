@@ -128,21 +128,10 @@ const fetchLinkMetadata = async (url) => {
   let date = getMeta("article:published_time") || getMeta("date") || getMeta("pubdate") || doc.querySelector("time")?.getAttribute("datetime") || "";
 
   // 🚨 ดักจับ Cloudflare / Anti-Bot (แก้ปัญหา "Just a moment...")
+  // ถ้าเจอคำพวกนี้ แสดงว่าเราดึงมาผิด ให้ล้างค่าทิ้งเพื่อให้ AI ไปลองแกะใหม่อีกที
   if (title.includes("Just a moment") || title.includes("Attention Required") || title.includes("Cloudflare")) {
       console.warn("Bot detection triggered. title discarded.");
-      title = ""; // ล้างค่าทิ้ง เพื่อให้ไปใช้ AI แทน หรือให้ User กรอกเอง
-  }
-
-  // หาวันที่สำรอง
-  if (!date) {
-      try {
-          const jsonLd = doc.querySelector('script[type="application/ld+json"]');
-          if (jsonLd) {
-              const data = JSON.parse(jsonLd.innerText);
-              const target = Array.isArray(data) ? data.find(i => i.datePublished) : data;
-              if (target?.datePublished) date = target.datePublished;
-          }
-      } catch (e) {}
+      title = ""; 
   }
 
   let result = { title, image, date };
@@ -154,12 +143,13 @@ const fetchLinkMetadata = async (url) => {
       const shortHtml = rawHtml.substring(0, 15000); 
       try {
         const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
-        // 🟢 แก้ชื่อ Model เป็น 'gemini-1.5-flash' (ตัด -latest ออก เพื่อความชัวร์)
+        
+        // 🟢 แก้ชื่อ Model เป็น 'gemini-1.5-flash-latest' (ตัวที่เสถียรกว่า)
         const prompt = `Extract metadata from HTML. If blocked by Cloudflare, try to find hidden content.
         Return JSON ONLY: {"title": "...", "image": "...", "date": "..."}
         HTML: ${shortHtml}`;
         
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -177,7 +167,24 @@ const fetchLinkMetadata = async (url) => {
               if (!result.date) result.date = aiResult.date; 
             }
         } else {
-            console.error("Gemini Error:", await response.text());
+            // ถ้ายัง 404 อีก ให้ลองถอยไปใช้ 'gemini-pro' (ตัวเก่าแต่ชัวร์)
+            console.warn("Gemini Flash failed, trying Pro...");
+            const responsePro = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+            if (responsePro.ok) {
+                const aiData = await responsePro.json();
+                const textResponse = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (textResponse) {
+                    const cleanJson = textResponse.replace(/```json|```/g, '').trim();
+                    const aiResult = JSON.parse(cleanJson);
+                    if (!result.title) result.title = aiResult.title;
+                    if (!result.image) result.image = aiResult.image;
+                    if (!result.date) result.date = aiResult.date; 
+                }
+            }
         }
       } catch (e) { console.warn("AI Help failed", e); }
   }
