@@ -94,18 +94,18 @@ const formatForInput = (val) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// 🤖 ระบบดูดข่าวอัจฉริยะ (Native + AI Fallback using Standard Gemini Pro)
+// 🤖 ระบบดูดข่าวอัจฉริยะ (Smart Proxy + Multi-Model AI Retry)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
   let rawHtml = null;
 
-  // 1. ลองใช้ Proxy ตัวที่ 1 (CorsProxy.io)
+  // 1. Proxy ด่านแรก (CorsProxy)
   try {
     const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
     if (res.ok) rawHtml = await res.text();
-  } catch (e) { console.warn("CorsProxy failed, trying backup..."); }
+  } catch (e) { console.warn("CorsProxy failed..."); }
 
-  // 2. ถ้าตัวแรกพัง ลองตัวที่ 2 (AllOrigins)
+  // 2. Proxy ด่านสอง (AllOrigins)
   if (!rawHtml) {
     try {
       const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
@@ -127,50 +127,58 @@ const fetchLinkMetadata = async (url) => {
   let image = getMeta("og:image") || "";
   let date = getMeta("article:published_time") || getMeta("date") || getMeta("pubdate") || doc.querySelector("time")?.getAttribute("datetime") || "";
 
-  // 🚨 ดักจับ Cloudflare / Anti-Bot
+  // 🚨 ดักจับ Anti-Bot
   if (title.includes("Just a moment") || title.includes("Attention Required") || title.includes("Cloudflare")) {
-      console.warn("Bot detection triggered. Discarding title.");
-      title = ""; 
+      title = ""; // ล้างค่าทิ้ง ให้ AI หาใหม่
   }
 
   let result = { title, image, date };
 
-  // --- AI Fallback (ใช้ Gemini Pro รุ่นมาตรฐาน) ---
-  // ทำงานเมื่อขาดข้อมูล
+  // --- AI Fallback (วนลูปหา Model ที่ใช้ได้) ---
   if (!result.title || !result.date) {
       const shortHtml = rawHtml.substring(0, 15000); 
-      try {
-        const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
-        
-        // 🟢 เปลี่ยนมาใช้ 'gemini-pro' (Standard 1.0) ที่รองรับทุก Key แน่นอน
-        const modelName = "gemini-pro"; 
-        
-        const prompt = `Extract metadata from HTML. If blocked, find hidden content.
-        Return JSON ONLY: {"title": "...", "image": "...", "date": "..."}
-        HTML: ${shortHtml}`;
-        
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
+      const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; // ⚠️ ควรเปลี่ยนเป็น Key ใหม่ถ้ายังพัง
+      
+      // 🟢 รายชื่อ Model ที่จะลองไล่เช็คทีละตัว
+      const modelCandidates = [
+          "gemini-1.5-flash",
+          "gemini-1.5-pro",
+          "gemini-1.0-pro" // ตัวสุดท้ายที่มักจะรอด
+      ];
 
-        if (response.ok) {
-            const aiData = await response.json();
-            const textResponse = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (textResponse) {
-              const cleanJson = textResponse.replace(/```json|```/g, '').trim();
-              const aiResult = JSON.parse(cleanJson);
-              
-              if (!result.title || result.title.includes("Just a moment")) result.title = aiResult.title;
-              if (!result.image) result.image = aiResult.image;
-              if (!result.date) result.date = aiResult.date; 
+      for (const model of modelCandidates) {
+          try {
+            console.log(`Trying AI Model: ${model}...`);
+            const prompt = `Extract metadata (title, image, date) from HTML. Return JSON ONLY: {"title": "...", "image": "...", "date": "..."}. HTML: ${shortHtml}`;
+            
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+
+            if (response.ok) {
+                const aiData = await response.json();
+                const textResponse = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (textResponse) {
+                    const cleanJson = textResponse.replace(/```json|```/g, '').trim();
+                    const aiResult = JSON.parse(cleanJson);
+                    // ถ้าได้ข้อมูลแล้ว ให้หยุดลูปทันที (break)
+                    if (!result.title || result.title.includes("Just a moment")) result.title = aiResult.title;
+                    if (!result.image) result.image = aiResult.image;
+                    if (!result.date) result.date = aiResult.date; 
+                    break; 
+                }
+            } else {
+                // ถ้า 404 ให้วนลูปไปตัวถัดไปเงียบๆ
+                console.warn(`${model} failed:`, response.status);
             }
-        } else {
-             console.error("Gemini Pro Error:", await response.text());
-        }
-      } catch (e) { console.warn("AI Help failed", e); }
+          } catch (e) {
+             console.warn(`Error with ${model}`, e);
+          }
+      }
   }
+  
   return result;
 };
 
