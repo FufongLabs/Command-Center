@@ -94,12 +94,12 @@ const formatForInput = (val) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// 🤖 ระบบดูดข่าวอัจฉริยะ (Native + AI Fallback + Anti-Bot Detection)
+// 🤖 ระบบดูดข่าวอัจฉริยะ (Updated Model Names)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
   let rawHtml = null;
 
-  // 1. ลองใช้ Proxy ตัวที่ 1 (CorsProxy.io - ตัวนี้มักจะทะลุ Cloudflare ได้ดีกว่า)
+  // 1. ลองใช้ Proxy ตัวที่ 1 (CorsProxy.io)
   try {
     const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
     if (res.ok) rawHtml = await res.text();
@@ -118,7 +118,7 @@ const fetchLinkMetadata = async (url) => {
 
   if (!rawHtml) return null; 
 
-  // แกะข้อมูล
+  // แกะข้อมูลเบื้องต้น
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, "text/html");
   const getMeta = (prop) => doc.querySelector(`meta[property="${prop}"]`)?.content || doc.querySelector(`meta[name="${prop}"]`)?.content;
@@ -127,29 +127,29 @@ const fetchLinkMetadata = async (url) => {
   let image = getMeta("og:image") || "";
   let date = getMeta("article:published_time") || getMeta("date") || getMeta("pubdate") || doc.querySelector("time")?.getAttribute("datetime") || "";
 
-  // 🚨 ดักจับ Cloudflare / Anti-Bot (แก้ปัญหา "Just a moment...")
-  // ถ้าเจอคำพวกนี้ แสดงว่าเราดึงมาผิด ให้ล้างค่าทิ้งเพื่อให้ AI ไปลองแกะใหม่อีกที
+  // 🚨 ดักจับ Cloudflare / Anti-Bot
   if (title.includes("Just a moment") || title.includes("Attention Required") || title.includes("Cloudflare")) {
-      console.warn("Bot detection triggered. title discarded.");
+      console.warn("Bot detection triggered. Discarding title.");
       title = ""; 
   }
 
   let result = { title, image, date };
 
   // --- AI Fallback (Gemini) ---
-  // จะทำงานต่อเมื่อ Title หาย (โดนบล็อก) หรือ Date หาย
+  // ทำงานเมื่อขาดข้อมูล
   if (!result.title || !result.date) {
-      // ตัด HTML ให้สั้นลง (เอาแค่ส่วน Head และ Body ช่วงต้นก็พอ เพื่อประหยัด Token และลด Error 400)
       const shortHtml = rawHtml.substring(0, 15000); 
       try {
         const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
         
-        // 🟢 แก้ชื่อ Model เป็น 'gemini-1.5-flash-latest' (ตัวที่เสถียรกว่า)
-        const prompt = `Extract metadata from HTML. If blocked by Cloudflare, try to find hidden content.
+        // 🟢 แก้ไขจุดตาย: เปลี่ยนชื่อ Model เป็นตัวที่ Google รับรอง (ไม่มี -latest)
+        const modelName = "gemini-1.5-flash"; 
+        
+        const prompt = `Extract metadata from HTML. If blocked, find hidden content.
         Return JSON ONLY: {"title": "...", "image": "...", "date": "..."}
         HTML: ${shortHtml}`;
         
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -161,15 +161,14 @@ const fetchLinkMetadata = async (url) => {
             if (textResponse) {
               const cleanJson = textResponse.replace(/```json|```/g, '').trim();
               const aiResult = JSON.parse(cleanJson);
-              // เติมข้อมูลเฉพาะส่วนที่ขาด
               if (!result.title || result.title.includes("Just a moment")) result.title = aiResult.title;
               if (!result.image) result.image = aiResult.image;
               if (!result.date) result.date = aiResult.date; 
             }
         } else {
-            // ถ้ายัง 404 อีก ให้ลองถอยไปใช้ 'gemini-pro' (ตัวเก่าแต่ชัวร์)
-            console.warn("Gemini Flash failed, trying Pro...");
-            const responsePro = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+             // ถ้า Flash พัง ให้ลอง Pro (รุ่น 1.5) แทน
+             console.warn("Gemini Flash failed, trying Pro 1.5...");
+             const responsePro = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
