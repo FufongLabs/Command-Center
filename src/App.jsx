@@ -8,10 +8,13 @@ import {
   onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, updateProfile 
 } from 'firebase/auth';
 
+// 🟢 เพิ่ม User และไอคอนที่ขาดไปตรงนี้ให้ครบแล้วครับ (แก้ User is not defined)
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, FileText, Plus, 
-  Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, Save, LogOut, Lock, AlertTriangle, Globe, Loader2, Tag, Search, Shield, FileClock, ArrowDownWideNarrow
+  Link as LinkIcon, Trash2, Edit2, ChevronDown, ChevronUp, Filter, RefreshCw, 
+  Save, LogOut, Lock, AlertTriangle, Globe, Loader2, Tag, Search, Shield, 
+  FileClock, ArrowDownWideNarrow, User, Phone, Mail, MessageCircle, Smartphone
 } from 'lucide-react';
 
 // --- GLOBAL CONSTANTS ---
@@ -39,20 +42,20 @@ const SOP_GUIDE = [
   "5. กระจายลง Social Media & ส่งกลุ่มนักข่าว"
 ];
 
-const COLUMN_LABELS = {
-    solver: "1. ผลงาน (Solver)",
-    principles: "2. จุดยืน (Principles)",
-    defender: "3. ตอบโต้ (Defender)",
-    expert: "4. ผู้เชี่ยวชาญ (Expert)",
-    backoffice: "5. หลังบ้าน (Back Office)"
-};
-
 const COL_DESCRIPTIONS = {
     solver: "งานรูทีน, ลงพื้นที่, แก้ปัญหาชาวบ้าน",
     principles: "Quote คำคม, อุดมการณ์, Viral, Brand",
     defender: "ชี้แจงข่าวบิดเบือน, ประเด็นร้อน, Agile",
     expert: "วิเคราะห์เชิงลึก, กฎหมาย, Knowledge",
     backoffice: "เอกสาร, งบประมาณ, ระบบ IT"
+};
+
+const COLUMN_LABELS = {
+    solver: "1. ผลงาน (Solver)",
+    principles: "2. จุดยืน (Principles)",
+    defender: "3. ตอบโต้ (Defender)",
+    expert: "4. ผู้เชี่ยวชาญ (Expert)",
+    backoffice: "5. หลังบ้าน (Back Office)"
 };
 
 // --- HELPER FUNCTIONS ---
@@ -133,7 +136,7 @@ const fetchLinkMetadata = async (url) => {
   return result;
 };
 
-// --- COMPONENTS (DEFINED OUTSIDE TO AVOID RE-CREATION) ---
+// --- COMPONENTS ---
 
 const LoadingOverlay = ({ isOpen, message = "กำลังทำงาน..." }) => {
   if (!isOpen) return null;
@@ -473,6 +476,15 @@ export default function TeamTaweeApp() {
   const [systemTags, setSystemTags] = useState([]);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
 
+  // --- HELPER IN SCOPE ---
+  // แก้ไข 1: ประกาศ navigateTo ไว้ตรงนี้ เพื่อให้ฟังก์ชันอื่นใน scope นี้เรียกใช้ได้
+  const navigateTo = (tabId) => { 
+    if (activeTab === tabId) return; 
+    setActiveTab(tabId); 
+    window.history.pushState({ tab: tabId }, '', `#${tabId}`); 
+    setIsMobileMenuOpen(false); 
+  };
+
   // --- DATA FETCHING ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -485,6 +497,14 @@ export default function TeamTaweeApp() {
       setAuthLoading(false);
     });
     return unsubscribe;
+  }, []);
+
+  // Back button handling
+  useEffect(() => {
+    const handlePopState = (event) => { if (event.state?.tab) setActiveTab(event.state.tab); else setActiveTab('dashboard'); };
+    window.addEventListener('popstate', handlePopState);
+    window.history.replaceState({ tab: 'dashboard' }, '', '#dashboard');
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   useEffect(() => {
@@ -593,8 +613,6 @@ export default function TeamTaweeApp() {
   const addPlan = () => openFormModal("สร้างแผนใหม่", [{key:'title', label:'ชื่อแผน'}], async(d)=> { await addDoc(collection(db,"plans"), {...d, progress:0, items:[]}); logActivity("Create Plan", d.title); });
   const createUrgentCase = () => openFormModal("เปิดเคสด่วน", [{key:'title', label:'หัวข้อ'}, {key:'deadline', label:'เสร็จภายใน', type:'date'}], async(d) => { await addDoc(collection(db,"tasks"), { ...d, status:"To Do", role:"Hunter", tag:"Urgent", link:"", columnKey:"defender", sop:DEFAULT_SOP, createdBy:currentUser.displayName, createdAt:new Date().toISOString() }); alert("เปิดเคสแล้ว!"); logActivity("Open Urgent", d.title); });
   const updateUserStatus = (uid, status, role) => { updateDoc(doc(db, "user_profiles", uid), { status, role }); logActivity("Admin Update", `${uid} -> ${status}`); };
-
-  const navigateTo = (tabId) => { if (activeTab === tabId) return; setActiveTab(tabId); window.history.pushState({ tab: tabId }, '', `#${tabId}`); setIsMobileMenuOpen(false); };
 
   // --- RENDERING ---
   const sortTasks = (taskList) => {
@@ -738,7 +756,10 @@ export default function TeamTaweeApp() {
                                                 <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100"><ExternalLink className="w-8 h-8 text-white drop-shadow-md"/></a>
                                             </div>
                                             <div className="p-4 flex flex-col flex-1">
-                                                <div className="flex justify-between items-start mb-2"><span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span><div className="flex gap-2 opacity-0 group-hover:opacity-100 transition"><button onClick={()=>editPublishedLink(link)} className="text-slate-300 hover:text-blue-500"><Edit2 className="w-3.5 h-3.5"/></button><button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button></div></div>
+                                                <div className="flex justify-between items-start mb-2"><span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span><div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                                {/* 🟢 แก้ไขปุ่ม Edit ให้ทำงานได้จริง (เรียกฟังก์ชัน editPublishedLink) */}
+                                                <button onClick={()=>editPublishedLink(link)} className="text-slate-300 hover:text-blue-500"><Edit2 className="w-3.5 h-3.5"/></button>
+                                                <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button></div></div>
                                                 <a href={link.url} target="_blank" rel="noreferrer" className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 hover:text-blue-600 transition mb-2">{link.title}</a>
                                                 <div className="text-[10px] text-slate-400 font-medium mb-3 flex items-center gap-1"><LinkIcon className="w-3 h-3" />{getDomain(link.url)}</div>
                                                 <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400"><span>{formatDate(link.createdAt)}</span></div>
