@@ -94,62 +94,70 @@ const formatForInput = (val) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// 🤖 ระบบดูดข่าวอัจฉริยะ (Native + AI Fallback)
+// 🤖 ระบบดูดข่าวอัจฉริยะ (Native + AI Fallback + Anti-Bot Detection)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
   let rawHtml = null;
 
-  // 1. Primary Proxy (AllOrigins)
+  // 1. ลองใช้ Proxy ตัวที่ 1 (CorsProxy.io - ตัวนี้มักจะทะลุ Cloudflare ได้ดีกว่า)
   try {
-    const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-    if (proxyRes.ok) {
-        const proxyData = await proxyRes.json();
-        if (proxyData.contents) rawHtml = proxyData.contents;
-    }
-  } catch (e) { console.warn("Primary proxy failed, switching to backup..."); }
+    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
+    if (res.ok) rawHtml = await res.text();
+  } catch (e) { console.warn("CorsProxy failed, trying backup..."); }
 
-  // 2. Secondary Proxy (CorsProxy) - ถ้าอันแรกพัง
+  // 2. ถ้าตัวแรกพัง ลองตัวที่ 2 (AllOrigins)
   if (!rawHtml) {
     try {
-      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
-      if (res.ok) rawHtml = await res.text();
+      const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+      if (proxyRes.ok) {
+          const proxyData = await proxyRes.json();
+          if (proxyData.contents) rawHtml = proxyData.contents;
+      }
     } catch (e) { console.warn("All proxies failed."); }
   }
 
-  if (!rawHtml) return null; // ยอมแพ้ ให้ User กรอกเอง
+  if (!rawHtml) return null; 
 
-  // แกะข้อมูลด้วย Native DOM Parser (เร็วและแม่นยำสำหรับเว็บมาตรฐาน)
+  // แกะข้อมูล
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, "text/html");
   const getMeta = (prop) => doc.querySelector(`meta[property="${prop}"]`)?.content || doc.querySelector(`meta[name="${prop}"]`)?.content;
 
-  let foundDate = getMeta("article:published_time") || getMeta("date") || getMeta("pubdate") || doc.querySelector("time")?.getAttribute("datetime") || "";
+  let title = getMeta("og:title") || doc.title || "";
+  let image = getMeta("og:image") || "";
+  let date = getMeta("article:published_time") || getMeta("date") || getMeta("pubdate") || doc.querySelector("time")?.getAttribute("datetime") || "";
 
-  // ถ้าไม่เจอวันที่ ลองหาใน JSON-LD
-  if (!foundDate) {
+  // 🚨 ดักจับ Cloudflare / Anti-Bot (แก้ปัญหา "Just a moment...")
+  if (title.includes("Just a moment") || title.includes("Attention Required") || title.includes("Cloudflare")) {
+      console.warn("Bot detection triggered. title discarded.");
+      title = ""; // ล้างค่าทิ้ง เพื่อให้ไปใช้ AI แทน หรือให้ User กรอกเอง
+  }
+
+  // หาวันที่สำรอง
+  if (!date) {
       try {
           const jsonLd = doc.querySelector('script[type="application/ld+json"]');
           if (jsonLd) {
               const data = JSON.parse(jsonLd.innerText);
               const target = Array.isArray(data) ? data.find(i => i.datePublished) : data;
-              if (target?.datePublished) foundDate = target.datePublished;
+              if (target?.datePublished) date = target.datePublished;
           }
       } catch (e) {}
   }
 
-  let result = {
-    title: getMeta("og:title") || doc.title || "",
-    image: getMeta("og:image") || "",
-    date: foundDate
-  };
+  let result = { title, image, date };
 
   // --- AI Fallback (Gemini) ---
-  // ใช้เฉพาะเมื่อหาข้อมูลไม่เจอจริงๆ เพื่อลดโอกาส Error 404/Quota Exceeded
+  // จะทำงานต่อเมื่อ Title หาย (โดนบล็อก) หรือ Date หาย
   if (!result.title || !result.date) {
-      const shortHtml = rawHtml.substring(0, 20000); // ตัดให้สั้นลง
+      // ตัด HTML ให้สั้นลง (เอาแค่ส่วน Head และ Body ช่วงต้นก็พอ เพื่อประหยัด Token และลด Error 400)
+      const shortHtml = rawHtml.substring(0, 15000); 
       try {
-        const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; // ⚠️ ตรวจสอบ Key ของคุณอีกครั้ง
-        const prompt = `Extract metadata (title, image, date) from this HTML. Return JSON: {"title":"...","image":"...","date":"..."}. HTML: ${shortHtml}`;
+        const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
+        // 🟢 แก้ชื่อ Model เป็น 'gemini-1.5-flash' (ตัด -latest ออก เพื่อความชัวร์)
+        const prompt = `Extract metadata from HTML. If blocked by Cloudflare, try to find hidden content.
+        Return JSON ONLY: {"title": "...", "image": "...", "date": "..."}
+        HTML: ${shortHtml}`;
         
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
           method: "POST",
@@ -163,12 +171,15 @@ const fetchLinkMetadata = async (url) => {
             if (textResponse) {
               const cleanJson = textResponse.replace(/```json|```/g, '').trim();
               const aiResult = JSON.parse(cleanJson);
-              if (!result.title) result.title = aiResult.title;
+              // เติมข้อมูลเฉพาะส่วนที่ขาด
+              if (!result.title || result.title.includes("Just a moment")) result.title = aiResult.title;
               if (!result.image) result.image = aiResult.image;
               if (!result.date) result.date = aiResult.date; 
             }
+        } else {
+            console.error("Gemini Error:", await response.text());
         }
-      } catch (e) { console.warn("AI Help failed, using basic data", e); }
+      } catch (e) { console.warn("AI Help failed", e); }
   }
   return result;
 };
