@@ -94,7 +94,7 @@ const formatForInput = (val) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// 🤖 ระบบดูดข่าวอัจฉริยะ (Updated Model Names)
+// 🤖 ระบบดูดข่าวอัจฉริยะ (Native + AI Fallback using Standard Gemini Pro)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
   let rawHtml = null;
@@ -118,7 +118,7 @@ const fetchLinkMetadata = async (url) => {
 
   if (!rawHtml) return null; 
 
-  // แกะข้อมูลเบื้องต้น
+  // แกะข้อมูลเบื้องต้น (Native DOM)
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, "text/html");
   const getMeta = (prop) => doc.querySelector(`meta[property="${prop}"]`)?.content || doc.querySelector(`meta[name="${prop}"]`)?.content;
@@ -135,15 +135,15 @@ const fetchLinkMetadata = async (url) => {
 
   let result = { title, image, date };
 
-  // --- AI Fallback (Gemini) ---
+  // --- AI Fallback (ใช้ Gemini Pro รุ่นมาตรฐาน) ---
   // ทำงานเมื่อขาดข้อมูล
   if (!result.title || !result.date) {
       const shortHtml = rawHtml.substring(0, 15000); 
       try {
         const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
         
-        // 🟢 แก้ไขจุดตาย: เปลี่ยนชื่อ Model เป็นตัวที่ Google รับรอง (ไม่มี -latest)
-        const modelName = "gemini-1.5-flash"; 
+        // 🟢 เปลี่ยนมาใช้ 'gemini-pro' (Standard 1.0) ที่รองรับทุก Key แน่นอน
+        const modelName = "gemini-pro"; 
         
         const prompt = `Extract metadata from HTML. If blocked, find hidden content.
         Return JSON ONLY: {"title": "...", "image": "...", "date": "..."}
@@ -161,29 +161,13 @@ const fetchLinkMetadata = async (url) => {
             if (textResponse) {
               const cleanJson = textResponse.replace(/```json|```/g, '').trim();
               const aiResult = JSON.parse(cleanJson);
+              
               if (!result.title || result.title.includes("Just a moment")) result.title = aiResult.title;
               if (!result.image) result.image = aiResult.image;
               if (!result.date) result.date = aiResult.date; 
             }
         } else {
-             // ถ้า Flash พัง ให้ลอง Pro (รุ่น 1.5) แทน
-             console.warn("Gemini Flash failed, trying Pro 1.5...");
-             const responsePro = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-            });
-            if (responsePro.ok) {
-                const aiData = await responsePro.json();
-                const textResponse = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (textResponse) {
-                    const cleanJson = textResponse.replace(/```json|```/g, '').trim();
-                    const aiResult = JSON.parse(cleanJson);
-                    if (!result.title) result.title = aiResult.title;
-                    if (!result.image) result.image = aiResult.image;
-                    if (!result.date) result.date = aiResult.date; 
-                }
-            }
+             console.error("Gemini Pro Error:", await response.text());
         }
       } catch (e) { console.warn("AI Help failed", e); }
   }
