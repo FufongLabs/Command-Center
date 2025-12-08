@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from './firebaseConfig'; 
 import { 
   collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, 
-  query, orderBy, setDoc, getDoc, serverTimestamp 
+  query, orderBy, setDoc, getDoc, serverTimestamp, 
+  writeBatch, getDocs, where // 🟢 Import เพิ่มสำหรับระบบแก้ Tag ย้อนหลัง
 } from 'firebase/firestore';
 import { 
   onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, updateProfile 
 } from 'firebase/auth';
 
-// 🟢 Import ครบถ้วน (รวมถึง ArrowUp, ArrowDown สำหรับเลื่อน Tag และ User Icon)
 import { 
   LayoutDashboard, Megaphone, Map, Zap, Database, Users, Menu, X, Activity, 
   Calendar, CheckCircle2, Circle, Clock, ExternalLink, FileText, Plus, 
@@ -43,20 +43,20 @@ const SOP_GUIDE = [
   "5. กระจายลง Social Media & ส่งกลุ่มนักข่าว"
 ];
 
-const COL_DESCRIPTIONS = {
-    solver: "งานรูทีน, ลงพื้นที่, แก้ปัญหาชาวบ้าน",
-    principles: "Quote คำคม, อุดมการณ์, Viral, Brand",
-    defender: "ชี้แจงข่าวบิดเบือน, ประเด็นร้อน, Agile",
-    expert: "วิเคราะห์เชิงลึก, กฎหมาย, Knowledge",
-    backoffice: "เอกสาร, งบประมาณ, ระบบ IT"
-};
-
 const COLUMN_LABELS = {
     solver: "1. ผลงาน (Solver)",
     principles: "2. จุดยืน (Principles)",
     defender: "3. ตอบโต้ (Defender)",
     expert: "4. ผู้เชี่ยวชาญ (Expert)",
     backoffice: "5. หลังบ้าน (Back Office)"
+};
+
+const COL_DESCRIPTIONS = {
+    solver: "งานรูทีน, ลงพื้นที่, แก้ปัญหาชาวบ้าน",
+    principles: "Quote คำคม, อุดมการณ์, Viral, Brand",
+    defender: "ชี้แจงข่าวบิดเบือน, ประเด็นร้อน, Agile",
+    expert: "วิเคราะห์เชิงลึก, กฎหมาย, Knowledge",
+    backoffice: "เอกสาร, งบประมาณ, ระบบ IT"
 };
 
 // --- HELPER FUNCTIONS ---
@@ -93,46 +93,30 @@ const formatForInput = (val) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// 🤖 ฟังก์ชัน AI Hybrid (ดึงเองก่อน ถ้าไม่ได้ให้ AI ช่วย)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
-
   let rawHtml = null;
-
-  // 1. ลองใช้ Proxy (AllOrigins)
   try {
     const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
     if (!proxyRes.ok) throw new Error("Network error");
     const proxyData = await proxyRes.json();
     if (proxyData.contents) rawHtml = proxyData.contents;
-  } catch (e) {
-    console.warn("AllOrigins failed, trying backup...");
-  }
+  } catch (e) { console.warn("AllOrigins failed, trying backup..."); }
 
-  // 2. (Backup) ใช้ CORSProxy.io
   if (!rawHtml) {
     try {
       const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
       if (res.ok) rawHtml = await res.text();
-    } catch (e) {
-      console.warn("Backup proxy failed too.");
-    }
+    } catch (e) { console.warn("Backup proxy failed too."); }
   }
 
   if (!rawHtml) return null;
 
-  // --- ส่วนแกะข้อมูล (Native DOM) ---
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, "text/html");
   const getMeta = (prop) => doc.querySelector(`meta[property="${prop}"]`)?.content || doc.querySelector(`meta[name="${prop}"]`)?.content;
 
-  // พยายามหาวันที่ด้วยตัวเองก่อน
-  let foundDate = 
-    getMeta("article:published_time") || 
-    getMeta("date") || 
-    getMeta("pubdate") ||
-    doc.querySelector("time")?.getAttribute("datetime") || 
-    "";
+  let foundDate = getMeta("article:published_time") || getMeta("date") || getMeta("pubdate") || doc.querySelector("time")?.getAttribute("datetime") || "";
 
   if (!foundDate) {
       try {
@@ -151,27 +135,15 @@ const fetchLinkMetadata = async (url) => {
     date: foundDate
   };
 
-  // --- 🤖 ส่วน AI ช่วย (Gemini Fallback) ---
-  // ทำงานเฉพาะเมื่อข้อมูลไม่ครบ เพื่อความแม่นยำสูงสุด
+  // AI Fallback
   if (!result.title || !result.date) {
       const shortHtml = rawHtml.substring(0, 30000); 
       try {
         const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; 
-        
-        const prompt = `Analyze this HTML and extract metadata in JSON format ONLY.
-        1. Title: If empty "${result.title}", find the best article headline.
-        2. Image: If empty "${result.image}", find the main article image URL.
-        3. Date: If empty "${result.date}", find publication date (ISO format preferred).
-        
-        Return JSON structure: {"title": "...", "image": "...", "date": "..."}
-        HTML Snippet: ${shortHtml}`;
-
+        const prompt = `Analyze this HTML and extract metadata in JSON format ONLY. 1. Title: If empty "${result.title}", find the best article headline. 2. Image: If empty "${result.image}", find the main article image URL. 3. Date: If empty "${result.date}", find publication date (ISO format preferred). Return JSON structure: {"title": "...", "image": "...", "date": "..."} HTML Snippet: ${shortHtml}`;
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-
         if (response.ok) {
             const aiData = await response.json();
             const textResponse = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -183,11 +155,8 @@ const fetchLinkMetadata = async (url) => {
               if (!result.date) result.date = aiResult.date; 
             }
         }
-      } catch (e) {
-        console.warn("AI Help failed", e);
-      }
+      } catch (e) { console.warn("AI Help failed", e); }
   }
-
   return result;
 };
 
@@ -206,13 +175,11 @@ const LoadingOverlay = ({ isOpen, message = "กำลังทำงาน..." 
 const SearchModal = ({ isOpen, onClose, data, onNavigate }) => {
   const [query, setQuery] = useState("");
   if (!isOpen) return null;
-
   const results = query.length < 2 ? [] : [
     ...data.tasks.filter(t => t.title?.toLowerCase().includes(query.toLowerCase())).map(t => ({ ...t, type: 'Task', label: t.title, sub: t.status })),
     ...data.media.filter(m => m.name?.toLowerCase().includes(query.toLowerCase())).map(m => ({ ...m, type: 'Media', label: m.name, sub: m.phone })),
     ...data.channels.filter(c => c.name?.toLowerCase().includes(query.toLowerCase())).map(c => ({ ...c, type: 'Channel', label: c.name, sub: c.url })),
   ];
-
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[1500] p-4 pt-20 animate-fadeIn" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -340,6 +307,7 @@ const FormModal = ({ isOpen, onClose, title, fields, onSave, submitText = "บ�
   );
 };
 
+// 🟢 TagManagerModal (อัปเกรด: จำชื่อเดิมเพื่อตามไปแก้ + Reorder)
 const TagManagerModal = ({ isOpen, onClose, existingTags, onSave }) => {
   const [tags, setTags] = useState([]);
   const [newTagName, setNewTagName] = useState("");
@@ -347,12 +315,14 @@ const TagManagerModal = ({ isOpen, onClose, existingTags, onSave }) => {
 
   useEffect(() => {
     if (isOpen) {
-        setTags(existingTags && existingTags.length > 0 ? existingTags : [
+        // เก็บ originalName ไว้ เพื่อเทียบว่ามีการเปลี่ยนชื่อไหม
+        const initTags = (existingTags && existingTags.length > 0 ? existingTags : [
             { name: "Breaking News", color: "#ef4444" }, 
             { name: "PR News", color: "#3b82f6" },       
             { name: "Event", color: "#10b981" },         
             { name: "Official", color: "#6366f1" }       
-        ]);
+        ]).map(t => ({ ...t, originalName: t.name })); // Backup name
+        setTags(initTags);
     }
   }, [isOpen, existingTags]);
 
@@ -362,12 +332,13 @@ const TagManagerModal = ({ isOpen, onClose, existingTags, onSave }) => {
         alert("ชื่อ Tag นี้มีอยู่แล้ว");
         return;
     }
-    setTags([...tags, { name: newTagName.trim(), color: newTagColor }]);
+    // originalName เป็น null สำหรับ Tag ใหม่
+    setTags([...tags, { name: newTagName.trim(), color: newTagColor, originalName: null }]);
     setNewTagName("");
   };
 
   const handleDelete = (index) => {
-    if(confirm("ต้องการลบ Tag นี้?")) {
+    if(confirm("ต้องการลบ Tag นี้ออกจากระบบจัดการ? (Tag ในข่าวเก่าจะยังอยู่)")) {
         setTags(tags.filter((_, i) => i !== index));
     }
   };
@@ -388,6 +359,18 @@ const TagManagerModal = ({ isOpen, onClose, existingTags, onSave }) => {
     setTags(newTags);
   };
 
+  const handleSave = () => {
+      // 1. เตรียมรายการ Tag สำหรับ Save ลง Settings (เอา originalName ออก)
+      const cleanTags = tags.map(({ name, color }) => ({ name, color }));
+      
+      // 2. หา Tag ที่มีการเปลี่ยนชื่อ (มี originalName และไม่ตรงกับ name ปัจจุบัน)
+      const renames = tags
+        .filter(t => t.originalName && t.originalName !== t.name)
+        .map(t => ({ oldName: t.originalName, newName: t.name }));
+
+      onSave(cleanTags, renames); // ส่งทั้งรายการใหม่ และรายการที่ต้องตามไปแก้
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -397,7 +380,7 @@ const TagManagerModal = ({ isOpen, onClose, existingTags, onSave }) => {
             <h3 className="text-xl font-bold text-slate-800">จัดการแท็ก (Tag Manager)</h3>
             <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400"/></button>
         </div>
-        <p className="text-xs text-slate-500 mb-6">เพิ่ม แก้ไข และจัดลำดับความสำคัญของแท็ก</p>
+        <p className="text-xs text-slate-500 mb-6">แก้ไขชื่อ/สี และจัดลำดับ (หากเปลี่ยนชื่อ Tag ระบบจะตามไปแก้ข่าวเก่าให้)</p>
 
         <div className="flex gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200 shadow-sm flex-shrink-0">
             <div className="relative w-10 h-10 flex-shrink-0">
@@ -425,7 +408,7 @@ const TagManagerModal = ({ isOpen, onClose, existingTags, onSave }) => {
             ))}
         </div>
         <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end bg-white">
-            <button onClick={() => onSave(tags)} className="w-full sm:w-auto bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95 transition-all"><Save className="w-4 h-4"/> บันทึกการเปลี่ยนแปลง</button>
+            <button onClick={handleSave} className="w-full sm:w-auto bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95 transition-all"><Save className="w-4 h-4"/> บันทึกการเปลี่ยนแปลง</button>
         </div>
       </div>
     </div>
@@ -631,9 +614,45 @@ export default function TeamTaweeApp() {
   const openFormModal = (title, fields, onSave, submitText, additionalProps = {}) => 
       setFormModalConfig({ isOpen:true, title, fields, onSave: async(d)=>{ setIsGlobalLoading(true); try{await onSave(d); setFormModalConfig(prev=>({...prev, isOpen:false}));}catch(e){alert(e.message);} setIsGlobalLoading(false); }, submitText, ...additionalProps });
 
-  const saveSystemTags = async (newTags) => {
+  // 🟢 ฟังก์ชัน Save System Tags แบบใหม่ (ตามไปแก้ชื่อในข่าวเก่าด้วย)
+  const saveSystemTags = async (newTags, renames) => {
     setIsGlobalLoading(true);
-    try { await setDoc(doc(db, "settings", "news_config"), { tags: newTags }, { merge: true }); setIsTagManagerOpen(false); } catch (e) { alert("บันทึกไม่สำเร็จ: " + e.message); }
+    try {
+        // 1. บันทึก Tag ใหม่ลง Settings
+        await setDoc(doc(db, "settings", "news_config"), { tags: newTags }, { merge: true });
+
+        // 2. ถ้ามีการเปลี่ยนชื่อ Tag (Renames) ให้ไล่แก้ในข่าวเก่า
+        if (renames && renames.length > 0) {
+            const batch = writeBatch(db);
+            let batchCount = 0;
+
+            for (const { oldName, newName } of renames) {
+                if (oldName === newName) continue;
+
+                // หาข่าวที่มี Tag ชื่อเก่า
+                const q = query(collection(db, "published_links"), where("tags", "array-contains", oldName));
+                const querySnapshot = await getDocs(q);
+
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    // เปลี่ยนชื่อเก่าเป็นใหม่
+                    const updatedTags = (data.tags || []).map(t => t === oldName ? newName : t);
+                    
+                    const docRef = doc(db, "published_links", docSnap.id);
+                    batch.update(docRef, { tags: updatedTags });
+                    batchCount++;
+                });
+            }
+            // Commit การเปลี่ยนแปลงทั้งหมด
+            if (batchCount > 0) await batch.commit();
+        }
+
+        setIsTagManagerOpen(false);
+        alert("บันทึกข้อมูลเรียบร้อย!");
+    } catch (e) {
+        console.error(e);
+        alert("บันทึกไม่สำเร็จ: " + e.message);
+    }
     setIsGlobalLoading(false);
   };
 
