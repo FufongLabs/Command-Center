@@ -463,6 +463,7 @@ export default function TeamTaweeApp() {
 
   const [newsStartDate, setNewsStartDate] = useState('');
   const [newsEndDate, setNewsEndDate] = useState('');
+  const [newsFilterTag, setNewsFilterTag] = useState('All');
   
   const [editingTask, setEditingTask] = useState(null);
   const [urgentModal, setUrgentModal] = useState(null); 
@@ -998,26 +999,34 @@ const formatForInput = (timestamp) => {
   );
 
   const renderNewsroom = () => {
-    // 1. Filter ข้อมูลตามวันที่เลือก
+    // --- 1. เตรียมรายชื่อ Tag ทั้งหมดที่มีในระบบ ---
+    // ดึง Tags จากทุก Link มารวมกัน -> ตัดตัวซ้ำ -> ใส่ 'All' ไว้ตัวแรก
+    const allNewsTags = ['All', ...new Set(publishedLinks.flatMap(link => link.tags || []))].filter(Boolean);
+
+    // --- 2. Filter ข้อมูล (Date + Tag) ---
     let filteredLinks = publishedLinks;
+
+    // 2.1 Filter ตามวันที่ (Logic เดิม)
     if (newsStartDate && newsEndDate) {
       const start = new Date(newsStartDate).setHours(0,0,0,0);
       const end = new Date(newsEndDate).setHours(23,59,59,999);
-      filteredLinks = publishedLinks.filter(l => {
+      filteredLinks = filteredLinks.filter(l => {
         if(!l.createdAt) return false;
-        // แปลงเป็น Date ก่อนเทียบเสมอ
         const dObj = l.createdAt.toDate ? l.createdAt.toDate() : new Date(l.createdAt);
         const d = dObj.getTime();
         return d >= start && d <= end;
       });
     }
 
-    // 2. Group ข้อมูลตาม Week -> Day
+    // 2.2 🟢 Filter ตาม Tag (Logic ใหม่)
+    if (newsFilterTag !== 'All') {
+        filteredLinks = filteredLinks.filter(link => (link.tags || []).includes(newsFilterTag));
+    }
+
+    // --- 3. Group ข้อมูลตาม Week -> Day (Logic เดิม) ---
     const groupedData = {};
     filteredLinks.forEach(link => {
         if (!link.createdAt) return;
-        
-        // แปลงเป็น Date ก่อนใช้งาน
         const dateObj = link.createdAt.toDate ? link.createdAt.toDate() : new Date(link.createdAt);
         if (isNaN(dateObj.getTime())) return;
 
@@ -1042,21 +1051,41 @@ const formatForInput = (timestamp) => {
                     <span className="text-[10px] text-slate-400 font-bold ml-1">ถึงวันที่</span>
                     <input type="date" value={newsEndDate} onChange={e=>setNewsEndDate(e.target.value)} className="text-xs border rounded-lg p-1.5 outline-none focus:border-blue-500 text-slate-600"/>
                 </div>
-                <button onClick={() => {setNewsStartDate(''); setNewsEndDate('');}} className="p-2 text-slate-400 hover:text-red-500" title="ล้างค่า"><RefreshCw className="w-4 h-4"/></button>
+                <button onClick={() => {setNewsStartDate(''); setNewsEndDate(''); setNewsFilterTag('All');}} className="p-2 text-slate-400 hover:text-red-500" title="ล้างค่า"><RefreshCw className="w-4 h-4"/></button>
                 <div className="w-px h-8 bg-slate-200 mx-1"></div>
                 <button onClick={() => addPublishedLink()} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md flex items-center gap-2 h-fit mb-0.5"><Plus className="w-4 h-4" /> เพิ่มข่าว</button>
             </div>
           } 
         />
 
+        {/* 🟢 ส่วนแสดงแถบเลือก Tags (Filter Bar) */}
+        <div className="w-full overflow-x-auto pb-2 custom-scrollbar -mt-2">
+            <div className="flex items-center gap-2 min-w-max px-1">
+                <Tag className="w-4 h-4 text-slate-400 mr-2" />
+                {allNewsTags.map(tag => (
+                    <button 
+                        key={tag}
+                        onClick={() => setNewsFilterTag(tag)}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 border ${
+                            newsFilterTag === tag 
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' 
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                        }`}
+                    >
+                        {tag === 'All' ? 'ทั้งหมด' : `#${tag}`}
+                    </button>
+                ))}
+            </div>
+        </div>
+
+        {/* --- ส่วนแสดงผล Card ข่าว (เหมือนเดิม) --- */}
         {Object.keys(groupedData).length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-400">
                 <Globe className="w-12 h-12 mb-3 opacity-20"/>
-                <p>ไม่พบข้อมูลข่าวในช่วงเวลาที่เลือก</p>
+                <p>ไม่พบข้อมูลข่าว {newsFilterTag !== 'All' ? `ในหมวด #${newsFilterTag}` : ''}</p>
                 <button onClick={() => addPublishedLink()} className="mt-4 text-blue-600 font-bold hover:underline text-sm">+ เพิ่มข่าวแรกของคุณ</button>
             </div>
         ) : (
-            // เรียงลำดับสัปดาห์ (Week) จากใหม่ไปเก่า
             Object.keys(groupedData).sort((a,b) => b.localeCompare(a)).map(week => ( 
                 <div key={week} className="bg-white/50 rounded-3xl p-6 border border-slate-200/60 shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 left-0 bg-blue-600 text-white text-xs font-black px-4 py-1.5 rounded-br-2xl shadow-sm z-10">
@@ -1064,45 +1093,44 @@ const formatForInput = (timestamp) => {
                     </div>
                     
                     <div className="space-y-8 mt-4">
-                        {/* 🟢 ส่วนสำคัญ: เรียงลำดับวัน (Day) ตามเวลาจริง (Timestamp) */}
                         {Object.keys(groupedData[week]).sort((a,b) => {
                             const getLinkDate = (dayKey) => {
                                 const link = groupedData[week][dayKey][0];
                                 return link.createdAt.toDate ? link.createdAt.toDate().getTime() : new Date(link.createdAt).getTime();
                             };
-                            return getLinkDate(b) - getLinkDate(a); // มากไปน้อย (ล่าสุดขึ้นก่อน)
+                            return getLinkDate(b) - getLinkDate(a);
                         }).map(day => (
                             <div key={day}>
                                 <h3 className="flex items-center gap-2 text-slate-700 font-bold mb-4 pb-2 border-b border-slate-200">
                                     <Calendar className="w-4 h-4 text-blue-500"/> {day}
                                 </h3>
-                                {/* Grid Layout แบบใหม่: แสดงสูงสุด 6 ช่อง (ตามที่ขอ) */}
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                                     {groupedData[week][day].map(link => (
                                         <div key={link.id} className="group bg-white rounded-xl overflow-hidden border border-slate-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
-                                            <div className="aspect-video bg-slate-100 relative overflow-hidden">
+                                            <div className="aspect-video bg-slate-100 relative overflow-hidden group-hover:shadow-inner">
                                                 {link.imageUrl ? (
                                                     <img 
-    src={`https://wsrv.nl/?url=${encodeURIComponent(link.imageUrl)}&w=400&q=75`} 
-    alt={link.title} 
-    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-    onError={(e) => { 
-        e.target.onerror = null; // ป้องกัน Loop
-        // ถ้าโหลดผ่าน Proxy ไม่ได้ ให้ลองโหลดจากลิงก์จริง (Fallback)
-        if (e.target.src.includes('wsrv.nl')) {
-             e.target.src = link.imageUrl;
-        } else {
-             // ถ้ายังไม่ได้อีก ให้ใช้รูป Placeholder
-             e.target.src = "https://placehold.co/600x400?text=No+Image";
-        }
-    }}
-/>
+                                                        src={`https://wsrv.nl/?url=${encodeURIComponent(link.imageUrl)}&w=400&q=75`} 
+                                                        alt={link.title} 
+                                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                                                        onError={(e) => { e.target.onerror = null; if (e.target.src.includes('wsrv.nl')) { e.target.src = link.imageUrl; } else { e.target.src = "https://placehold.co/600x400?text=No+Image"; } }}
+                                                    />
                                                 ) : (
                                                     <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
                                                         <FileText className="w-10 h-10 mb-1"/>
                                                         <span className="text-[10px]">No Image</span>
                                                     </div>
                                                 )}
+                                                
+                                                {/* แสดง Tags บนรูป */}
+                                                <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10 pr-2">
+                                                    {(link.tags || []).map((tag, idx) => (
+                                                        <span key={idx} className="bg-black/60 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-sm">
+                                                            #{tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+
                                                 <a href={link.url} target="_blank" rel="noreferrer" className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                                                     <ExternalLink className="w-8 h-8 text-white drop-shadow-md"/>
                                                 </a>
@@ -1112,12 +1140,8 @@ const formatForInput = (timestamp) => {
                                                 <div className="flex justify-between items-start mb-2">
                                                     <span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{link.platform || 'News'}</span>
                                                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                                        <button onClick={()=>editPublishedLink(link)} className="text-slate-300 hover:text-blue-500" title="แก้ไข">
-                                                            <Edit2 className="w-3.5 h-3.5"/>
-                                                        </button>
-                                                        <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500" title="ลบ">
-                                                            <Trash2 className="w-3.5 h-3.5"/>
-                                                        </button>
+                                                        <button onClick={()=>editPublishedLink(link)} className="text-slate-300 hover:text-blue-500" title="แก้ไข"><Edit2 className="w-3.5 h-3.5"/></button>
+                                                        <button onClick={()=>deleteLink(link.id)} className="text-slate-300 hover:text-red-500" title="ลบ"><Trash2 className="w-3.5 h-3.5"/></button>
                                                     </div>
                                                 </div>
                                                 <a href={link.url} target="_blank" rel="noreferrer" className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 hover:text-blue-600 transition mb-2">
