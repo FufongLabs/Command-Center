@@ -94,18 +94,18 @@ const formatForInput = (val) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-// 🤖 ระบบดูดข่าวอัจฉริยะ (Smart Proxy + Multi-Model AI Retry)
+// 🤖 ระบบดูดข่าวอัจฉริยะ (Smart Fetch + Auto Retry + New Key)
 const fetchLinkMetadata = async (url) => {
   if (!url) return null;
   let rawHtml = null;
 
-  // 1. Proxy ด่านแรก (CorsProxy)
+  // 1. ลองใช้ CorsProxy
   try {
     const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
     if (res.ok) rawHtml = await res.text();
   } catch (e) { console.warn("CorsProxy failed..."); }
 
-  // 2. Proxy ด่านสอง (AllOrigins)
+  // 2. ลอง AllOrigins
   if (!rawHtml) {
     try {
       const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
@@ -118,7 +118,6 @@ const fetchLinkMetadata = async (url) => {
 
   if (!rawHtml) return null; 
 
-  // แกะข้อมูลเบื้องต้น (Native DOM)
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, "text/html");
   const getMeta = (prop) => doc.querySelector(`meta[property="${prop}"]`)?.content || doc.querySelector(`meta[name="${prop}"]`)?.content;
@@ -127,33 +126,34 @@ const fetchLinkMetadata = async (url) => {
   let image = getMeta("og:image") || "";
   let date = getMeta("article:published_time") || getMeta("date") || getMeta("pubdate") || doc.querySelector("time")?.getAttribute("datetime") || "";
 
-  // 🚨 ดักจับ Anti-Bot
+  // ดักจับ Anti-Bot
   if (title.includes("Just a moment") || title.includes("Attention Required") || title.includes("Cloudflare")) {
-      title = ""; // ล้างค่าทิ้ง ให้ AI หาใหม่
+      title = ""; 
   }
 
   let result = { title, image, date };
 
-  // --- AI Fallback (วนลูปหา Model ที่ใช้ได้) ---
+  // --- AI Fallback ---
   if (!result.title || !result.date) {
       const shortHtml = rawHtml.substring(0, 15000); 
-      const GEMINI_API_KEY = "AIzaSyAe0p771Sp_UfqRwJ35UubFvn9cSkOp5HY"; // ⚠️ ควรเปลี่ยนเป็น Key ใหม่ถ้ายังพัง
       
-      // 🟢 รายชื่อ Model ที่จะลองไล่เช็คทีละตัว
+      // 🔴🔴 สำคัญ: เอา Key ใหม่ที่ได้จาก Google AI Studio มาวางแทนที่ตรงนี้ครับ 🔴🔴
+      const GEMINI_API_KEY = "AIzaSyCCddMfY2JHfABUDRALO5Ci8DZHKtPZsY0"; 
+      
+      // รายชื่อ Model ที่จะวนลูปหา (เพิ่ม gemini-pro ตัวมาตรฐานเข้าไป)
       const modelCandidates = [
           "gemini-1.5-flash",
+          "gemini-pro",         // <-- ตัวนี้เสถียรสุด
           "gemini-1.5-pro",
-          "gemini-1.0-pro" // ตัวสุดท้ายที่มักจะรอด
+          "gemini-1.0-pro"
       ];
 
       for (const model of modelCandidates) {
           try {
-            console.log(`Trying AI Model: ${model}...`);
+            // console.log(`Trying AI Model: ${model}...`);
             const prompt = `Extract metadata (title, image, date) from HTML. Return JSON ONLY: {"title": "...", "image": "...", "date": "..."}. HTML: ${shortHtml}`;
-            
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
             });
 
@@ -163,22 +163,17 @@ const fetchLinkMetadata = async (url) => {
                 if (textResponse) {
                     const cleanJson = textResponse.replace(/```json|```/g, '').trim();
                     const aiResult = JSON.parse(cleanJson);
-                    // ถ้าได้ข้อมูลแล้ว ให้หยุดลูปทันที (break)
                     if (!result.title || result.title.includes("Just a moment")) result.title = aiResult.title;
                     if (!result.image) result.image = aiResult.image;
                     if (!result.date) result.date = aiResult.date; 
-                    break; 
+                    break; // หยุดลูปเมื่อเจอตัวที่ใช้ได้
                 }
-            } else {
-                // ถ้า 404 ให้วนลูปไปตัวถัดไปเงียบๆ
-                console.warn(`${model} failed:`, response.status);
             }
-          } catch (e) {
-             console.warn(`Error with ${model}`, e);
+          } catch (e) { 
+             // console.warn(`Error with ${model}`, e); 
           }
       }
   }
-  
   return result;
 };
 
