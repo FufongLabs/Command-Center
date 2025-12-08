@@ -39,20 +39,20 @@ const SOP_GUIDE = [
   "5. กระจายลง Social Media & ส่งกลุ่มนักข่าว"
 ];
 
-const COL_DESCRIPTIONS = {
-    solver: "งานรูทีน, ลงพื้นที่, แก้ปัญหาชาวบ้าน",
-    principles: "Quote คำคม, อุดมการณ์, Viral, Brand",
-    defender: "ชี้แจงข่าวบิดเบือน, ประเด็นร้อน, Agile",
-    expert: "วิเคราะห์เชิงลึก, กฎหมาย, Knowledge",
-    backoffice: "เอกสาร, งบประมาณ, ระบบ IT"
-};
-
 const COLUMN_LABELS = {
     solver: "1. ผลงาน (Solver)",
     principles: "2. จุดยืน (Principles)",
     defender: "3. ตอบโต้ (Defender)",
     expert: "4. ผู้เชี่ยวชาญ (Expert)",
     backoffice: "5. หลังบ้าน (Back Office)"
+};
+
+const COL_DESCRIPTIONS = {
+    solver: "งานรูทีน, ลงพื้นที่, แก้ปัญหาชาวบ้าน",
+    principles: "Quote คำคม, อุดมการณ์, Viral, Brand",
+    defender: "ชี้แจงข่าวบิดเบือน, ประเด็นร้อน, Agile",
+    expert: "วิเคราะห์เชิงลึก, กฎหมาย, Knowledge",
+    backoffice: "เอกสาร, งบประมาณ, ระบบ IT"
 };
 
 // --- HELPER FUNCTIONS ---
@@ -130,12 +130,10 @@ const fetchLinkMetadata = async (url) => {
     image: getMeta("og:image") || "",
     date: foundDate
   };
-
-  // AI Fallback (Gemini) would go here if needed, removed for brevity/safety unless explicitly requested
   return result;
 };
 
-// --- COMPONENTS ---
+// --- COMPONENTS (DEFINED OUTSIDE TO AVOID RE-CREATION) ---
 
 const LoadingOverlay = ({ isOpen, message = "กำลังทำงาน..." }) => {
   if (!isOpen) return null;
@@ -595,6 +593,8 @@ export default function TeamTaweeApp() {
   const addPlan = () => openFormModal("สร้างแผนใหม่", [{key:'title', label:'ชื่อแผน'}], async(d)=> { await addDoc(collection(db,"plans"), {...d, progress:0, items:[]}); logActivity("Create Plan", d.title); });
   const createUrgentCase = () => openFormModal("เปิดเคสด่วน", [{key:'title', label:'หัวข้อ'}, {key:'deadline', label:'เสร็จภายใน', type:'date'}], async(d) => { await addDoc(collection(db,"tasks"), { ...d, status:"To Do", role:"Hunter", tag:"Urgent", link:"", columnKey:"defender", sop:DEFAULT_SOP, createdBy:currentUser.displayName, createdAt:new Date().toISOString() }); alert("เปิดเคสแล้ว!"); logActivity("Open Urgent", d.title); });
   const updateUserStatus = (uid, status, role) => { updateDoc(doc(db, "user_profiles", uid), { status, role }); logActivity("Admin Update", `${uid} -> ${status}`); };
+
+  const navigateTo = (tabId) => { if (activeTab === tabId) return; setActiveTab(tabId); window.history.pushState({ tab: tabId }, '', `#${tabId}`); setIsMobileMenuOpen(false); };
 
   // --- RENDERING ---
   const sortTasks = (taskList) => {
